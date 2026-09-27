@@ -67,21 +67,29 @@ absorbe esa decision (ver `data/designRepository.ts`).
 ```text
 src/
   app/                          VIEW — rutas (Expo Router, file-based)
-    _layout.tsx                  Stack navigator raiz
-    index.tsx                    Home
-    design/create.tsx            Crear diseno
-    editor/index.tsx             Editor (camara + ajustes)
-    model3d/index.tsx            Maniquin 3D
-    artists/index.tsx            Tatuadores
-    appointment/[artistId].tsx   Agendar cita (ruta dinamica)
-    appointment/mine.tsx         Mis citas
+    _layout.tsx                  Stack raiz: fuentes, gestos, tema, auth listener
+    index.tsx                    Puerta de entrada: redirige a (auth) o (app) segun sesion
+    (auth)/                      Grupo SIN sesion (Expo Router route group)
+      _layout.tsx                 Stack; redirige a /dashboard si ya hay sesion
+      login.tsx
+      register.tsx
+    (app)/                       Grupo CON sesion
+      _layout.tsx                 Drawer (sidebar) — ver seccion 6
+      dashboard.tsx                Home del area autenticada
+      design/create.tsx            Crear diseno
+      editor/index.tsx             Editor (camara + ajustes)
+      model3d/index.tsx            Maniquin 3D
+      artists/index.tsx            Tatuadores
+      appointment/[artistId].tsx   Agendar cita (ruta dinamica, sin item en el sidebar)
+      appointment/mine.tsx         Mis citas
 
   components/                   VIEW — Atomic Design (no-route UI)
-    atoms/AppButton.tsx
-    molecules/TattooCard.tsx, ArtistCard.tsx
-    organisms/CameraOverlay.tsx, BodyModelViewer.tsx
+    atoms/AppButton.tsx, NeonWall.tsx, ...
+    molecules/TattooCard.tsx, ArtistCard.tsx, BodyDraftLogo.tsx
+    organisms/CameraOverlay.tsx, BodyModelViewer.tsx, DrawerContent.tsx
 
   controllers/                  CONTROLLER — un store Zustand por flujo
+    useAuthStore.ts               sesion/usuario + signUp/signIn/signOut
     useDesignStore.ts
     useEditorStore.ts
     useCameraController.ts       (hook, no store: envuelve el ref de camara)
@@ -96,12 +104,18 @@ src/
     designRepository.ts, artistRepository.ts, appointmentRepository.ts
 
   services/                     integraciones externas (puerto + adaptador)
+    authService.ts / supabaseClient.ts  (backend de autenticacion)
     aiService.ts / geminiAiService.ts
     storageService.ts / inMemoryStorageService.ts
     bodyModelService.ts
 
   core/
     services.ts                  cableado de DI (que implementacion usa cada interfaz)
+
+  theme/
+    colors.ts                    palette (marca, fija) + darkColors/lightColors
+    ThemeContext.tsx               ThemeProvider + useTheme() — interruptor real
+    typography.ts
 ```
 
 ---
@@ -137,29 +151,36 @@ Artist 1───* TattooDesign (source: 'artistTemplate')
 ## 4. Flujo principal (mapeado a rutas/Controllers)
 
 ```text
-app/index.tsx (Home)
-   │ (AppButton "Crear diseno")
-   ▼
-app/design/create.tsx  ──uses──> useDesignStore ──> designRepository ──> aiService / storageService
+app/index.tsx ──> (sin sesion) app/(auth)/login.tsx o register.tsx
+   │                              │ useAuthStore.signIn/signUp
+   │                              ▼ router.replace('/dashboard')
+   └──> (con sesion) ────> app/(app)/dashboard.tsx  ← pantalla distinta a login
+                               │ (AppButton "Crear diseno", o sidebar)
+                               ▼
+app/(app)/design/create.tsx  ──uses──> useDesignStore ──> designRepository ──> aiService / storageService
    │ (elige/crea diseno)
    ▼
 useEditorStore.selectDesign(designId)
    │
    ▼
-app/editor/index.tsx  ──uses──> useEditorStore + useCameraController
+app/(app)/editor/index.tsx  ──uses──> useEditorStore + useCameraController
    │  CameraOverlay (organism): arrastre → editor.move(...)
    │
-   ├──(boton "Ver en maniquin 3D")──> app/model3d/index.tsx ──uses──> useEditorStore (mismo estado)
+   ├──(boton "Ver en maniquin 3D")──> app/(app)/model3d/index.tsx ──uses──> useEditorStore (mismo estado)
    │
    ▼ (AppButton "Guardar propuesta")
 useEditorStore.save() ──> designRepository.saveProposal()
    ▼
-app/artists/index.tsx ──uses──> useArtistStore ──> artistRepository
+app/(app)/artists/index.tsx ──uses──> useArtistStore ──> artistRepository
    │ (elige tatuador)
    ▼
-app/appointment/[artistId].tsx ──uses──> useAppointmentStore ──> appointmentRepository
+app/(app)/appointment/[artistId].tsx ──uses──> useAppointmentStore ──> appointmentRepository
    ▼
-Confirmacion → Home
+Confirmacion → Dashboard
+
+En cualquier punto dentro de (app)/, deslizar desde el borde izquierdo abre
+el sidebar (DrawerContent) con acceso directo a cualquier seccion + tema +
+cerrar sesion — ver seccion 7.
 ```
 
 ---
@@ -201,11 +222,104 @@ posible evolucion futura si se necesita renderizado nativo real.
 
 Esto evita el costo (tecnico y de scope de un MVP academico) de reconstruir
 el cuerpo real del usuario en 3D via fotogrametria, que queda fuera de
-alcance (ver seccion 10).
+alcance (ver seccion 12).
 
 ---
 
-## 6. IA (Gemini)
+## 6. Autenticacion (Supabase) y navegacion por sesion
+
+El backend de la app es **Supabase** (Postgres + Auth administrado, sin
+servidor propio que mantener). `AuthService` (`services/authService.ts`) es
+la unica puerta de entrada; `SupabaseAuthService` la implementa sobre
+`@supabase/supabase-js` (`services/supabaseClient.ts`, sesion persistida en
+`AsyncStorage`). `useAuthStore` (`controllers/useAuthStore.ts`) expone
+`session`, `user`, y las acciones `signUp` / `signIn` / `signOut`; se
+suscribe una unica vez a `supabase.auth.onAuthStateChange(...)` (llamado
+desde `app/_layout.tsx` via `initAuth()`) para que toda la app reaccione
+automaticamente cuando cambia la sesion, y engancha `AppState` para
+pausar/reanudar el auto-refresh del token segun la app esta en foreground o
+background.
+
+**Navegacion segun sesion, con Expo Router route groups:**
+
+```text
+app/
+  index.tsx        "/" — puerta de entrada: espera isInitialized y
+                    hace <Redirect> a (auth)/login o (app)/dashboard
+  (auth)/            grupo SIN sesion — no agrega segmento a la URL
+    _layout.tsx        Stack; si ya hay sesion, <Redirect> a /dashboard
+    login.tsx           al loguear, router.replace('/dashboard') — una
+                         pantalla DISTINTA, no el mismo login re-pintado
+    register.tsx
+  (app)/              grupo CON sesion
+    _layout.tsx        Drawer (sidebar); si NO hay sesion, <Redirect> a /login
+    dashboard.tsx ...  (resto de las pantallas, ver seccion 7)
+```
+
+Los dos `_layout.tsx` de cada grupo son los que realmente "cuidan la
+puerta": `(app)/_layout.tsx` redirige a login si `session` es null, y
+`(auth)/_layout.tsx` redirige a dashboard si ya hay sesion (p. ej. si el
+usuario navega hacia atras con el gesto del sistema). El `index.tsx` raiz
+solo decide el destino inicial una vez.
+
+**Requisito para que la app arranque de verdad:** crear un proyecto gratis
+en [supabase.com](https://supabase.com) y copiar su Project URL y
+anon/publishable key a un archivo `.env` en la raiz:
+
+```
+EXPO_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=xxxx
+```
+
+Sin esto, `signUp`/`signIn`/`signOut` fallan (ver seccion 11).
+
+---
+
+## 7. Sidebar (Drawer) y tema claro/oscuro
+
+**Sidebar:** `(app)/_layout.tsx` usa `Drawer` de `expo-router/drawer`
+(bundlado en `expo-router` desde SDK 56+, sobre `react-native-drawer-layout`
++ `react-native-reanimated`/`react-native-worklets`). El contenido del
+sidebar es un componente 100% propio, `DrawerContent`
+(`components/organisms/DrawerContent.tsx`): logo, lista de secciones
+(navega con `router.push`), el interruptor de tema y "Cerrar sesion" — no
+depende de las props que Drawer inyecta, asi que no esta atado a la forma
+exacta de esa API.
+
+Para el efecto "estilo Twitter/X" (deslizar desde el borde izquierdo revela
+el sidebar *detras* del contenido, que se desliza para mostrarlo) se usa
+`screenOptions={{ drawerType: 'back' }}`: el sidebar queda fijo detras y la
+pantalla activa se desliza encima al arrastrar. Es el mismo mecanismo base
+que usa la app de Twitter/X. **Simplificacion consciente:** no se implemento
+el efecto adicional de que la tarjeta de contenido se *encoja* en escala
+mientras se desliza (el detalle mas fino de esa animacion) — requeriria
+leer el progreso del gesto con Reanimated y animar `transform: scale`
+manualmente, y el paquete que Expo Router usa para el Drawer no documenta un
+hook publico para eso. Con `drawerType: 'back'` el gesto de arrastre, la
+revelacion del sidebar detras del contenido y el cierre por swipe ya
+funcionan de forma nativa; la animacion de escala queda como posible
+refinamiento futuro (ver seccion 12).
+
+**Tema claro/oscuro:** `theme/ThemeContext.tsx` expone `ThemeProvider` +
+`useTheme()`. Arranca con la preferencia del sistema (`useColorScheme`),
+persiste la eleccion del usuario en `AsyncStorage`, y expone
+`{ scheme, colors, toggleTheme }`. `theme/colors.ts` separa dos capas:
+
+- `palette` / `glow`: los acentos de marca (fuchsia/azul/ambar del efecto
+  neon) — **fijos**, se ven igual en ambos temas.
+- `darkColors` / `lightColors`: fondo, superficie y texto — estos si
+  cambian con el tema.
+
+Cada pantalla/componente que necesita color llama a `useTheme()` y arma sus
+estilos con una funcion `createStyles(colors)` (en vez de un
+`StyleSheet.create` estatico con colores fijos), para que cambiar el
+interruptor re-renderice con la paleta correcta en toda la app. El
+interruptor en si vive en `DrawerContent` (siempre a un swipe de distancia,
+sin pantalla de "Ajustes" separada).
+
+---
+
+## 8. IA (Gemini)
 
 `AIService` (`services/aiService.ts`) es la unica puerta de entrada a IA;
 `GeminiAIService` es su implementacion concreta, sobre el SDK
@@ -222,11 +336,11 @@ alcance (ver seccion 10).
 `useDesignStore` es el unico Controller que llama `AIService` (via
 `designRepository`); ningun otro Controller ni ninguna View habla con
 Gemini directamente. La API key se lee de `process.env.EXPO_PUBLIC_GEMINI_API_KEY`
-(variable de entorno publica de Expo — ver seccion 9).
+(variable de entorno publica de Expo — ver seccion 11).
 
 ---
 
-## 7. Tatuadores y plantillas
+## 9. Tatuadores y plantillas
 
 Un tatuador es un `AppUser` con `role: 'artist'`. Cuando publica una
 plantilla, crea un `TattooDesign` con `source: 'artistTemplate'` y su
@@ -240,7 +354,7 @@ catalogo de un tatuador para mostrarlo en su perfil/portafolio.
 
 ---
 
-## 8. Persistencia
+## 10. Persistencia
 
 - **Local (`StorageService`, implementacion pendiente con expo-sqlite):**
   disenos, propuestas y citas del usuario, para que "Mis disenos" y "Mis
@@ -256,35 +370,48 @@ expo-sqlite, no toca Controllers ni Views.
 
 ---
 
-## 9. Variables de entorno y Expo Go
+## 11. Variables de entorno y Expo Go
 
 - Las variables que el bundle de JS necesita en tiempo de ejecucion (como
-  la API key de Gemini) deben llevar el prefijo `EXPO_PUBLIC_` (p. ej.
-  `EXPO_PUBLIC_GEMINI_API_KEY` en un archivo `.env` en la raiz) — es el
+  las API keys de Gemini y Supabase) deben llevar el prefijo `EXPO_PUBLIC_`
+  (`.env` en la raiz: `EXPO_PUBLIC_GEMINI_API_KEY`,
+  `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`) — es el
   mecanismo que Expo inlinea automaticamente en el bundle; sin ese
   prefijo, la variable no llega al cliente.
-- Todo lo usado en esta primera version (`expo-camera`, `expo-image-picker`,
+- Todo lo usado en esta version (`expo-camera`, `expo-image-picker`,
   `expo-sqlite`, `expo-crypto`, `react-native-webview`,
-  `@react-native-community/datetimepicker`) esta **incluido en el bundle
-  nativo de Expo Go** — se puede probar en un iPhone real con la app Expo
-  Go de la App Store, sin generar un development build.
+  `@react-native-community/datetimepicker`, `expo-router/drawer` +
+  `react-native-reanimated`/`react-native-worklets`,
+  `@supabase/supabase-js` + `@react-native-async-storage/async-storage`)
+  esta **incluido en el bundle nativo de Expo Go** — se puede probar en un
+  iPhone real con la app Expo Go de la App Store, sin generar un
+  development build.
 
 ---
 
-## 10. Pendiente / fuera del MVP
+## 12. Pendiente / fuera del MVP
 
 - Implementacion real de `StorageService` con expo-sqlite (`SQLiteProvider`
   + `useSQLiteContext`, esquema de tablas). Hoy `core/services.ts` usa
   `InMemoryStorageService` (`services/inMemoryStorageService.ts`), con
   datos de ejemplo, solo para poder navegar la app y revisar el diseno sin
   backend. Lo mismo con `ArtistRepository`, que devuelve una lista de
-  tatuadores de prueba en lugar de llamar a un backend real.
+  tatuadores de prueba en lugar de llamar a un backend real. (Ninguna de
+  las dos depende de Supabase; solo la autenticacion lo usa por ahora.)
 - Subida de imagenes/snapshots a storage remoto (hoy se guardan URIs
   locales del dispositivo).
 - Texturizado real del diseno sobre la malla 3D en `model3d/index.tsx`
   (`BodyModelViewer` ya renderiza un `.glb` de ejemplo; falta el asset real
   del maniquin y el pipeline de aplicar el PNG del diseno como decal).
-- Autenticacion (hoy `userId` esta hardcodeado a `'current-user'`).
+- El efecto de escala tipo Twitter/X en el sidebar (ver seccion 7) — hoy
+  solo esta el `drawerType: 'back'` nativo.
+- Endurecer el storage de sesion de Supabase: hoy usa `AsyncStorage` plano;
+  Supabase documenta una variante con `expo-secure-store` + cifrado AES
+  para produccion.
+- `userId` en `useEditorStore` sigue con el fallback `'current-user'`
+  cuando no hay sesion resuelta a tiempo; las pantallas que si tienen
+  session ya usan `useAuthStore().user.id` (crear diseno, mis citas,
+  saludo del dashboard).
 - Build de produccion / distribucion real: usar **EAS** (`eas build`,
   `eas submit`, `eas update`) para compilar y firmar en la nube sin Xcode
   ni Android Studio locales, y publicar en TestFlight/Play Store — Expo Go
