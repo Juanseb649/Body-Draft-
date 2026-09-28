@@ -27,15 +27,20 @@ function AppShell() {
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(app)" />
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="editor/index" />
+        <Stack.Screen name="model3d/index" />
+        <Stack.Screen name="artists/index" />
+        <Stack.Screen name="artists/[id]" />
+        <Stack.Screen name="appointment/[artistId]" />
       </Stack>
     </>
   );
 }
 
-/** Navegador raiz: fuentes, gestos (requeridos por el Drawer), tema y auth. */
+/** Navegador raiz: fuentes, gestos, tema y arranque del listener de auth. */
 export default function RootLayout() {
   const [fontsLoaded] = useFonts(fontAssets);
 
