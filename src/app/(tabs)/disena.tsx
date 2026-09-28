@@ -3,24 +3,28 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppButton } from '../../../components/atoms/AppButton';
-import { TattooCard } from '../../../components/molecules/TattooCard';
-import { useAuthStore } from '../../../controllers/useAuthStore';
-import { useDesignStore } from '../../../controllers/useDesignStore';
-import { useEditorStore } from '../../../controllers/useEditorStore';
-import type { TattooDesign } from '../../../models/tattooDesign';
-import { palette, type as typo, useTheme } from '../../../theme';
+import { AppButton } from '../../components/atoms/AppButton';
+import { Chip } from '../../components/atoms/Chip';
+import { SectionHeader } from '../../components/molecules/SectionHeader';
+import { TattooCard } from '../../components/molecules/TattooCard';
+import { useAuthStore } from '../../controllers/useAuthStore';
+import { useDesignStore } from '../../controllers/useDesignStore';
+import { useEditorStore } from '../../controllers/useEditorStore';
+import type { TattooDesign } from '../../models/tattooDesign';
+import { palette, type as typo, useTheme } from '../../theme';
 
-/**
- * Pantalla "Crear diseno": subir imagen, describir a la IA, o elegir
- * un diseno ya existente / una plantilla publicada por un tatuador.
- */
-export default function CreateDesignScreen() {
+const STYLES = ['Línea fina', 'Tradicional', 'Japonés', 'Blackwork', 'Acuarela'];
+
+/** Pestana "Diseña": describir a la IA, subir imagen, o elegir una plantilla. */
+export default function DesignScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const ownerId = useAuthStore((s) => s.user?.id) ?? 'current-user';
   const [prompt, setPrompt] = useState('');
+  const [style, setStyle] = useState<string | null>('Japonés');
   const { designs, isLoading, loadDesigns, generateWithAI, uploadDesign } = useDesignStore();
   const selectDesign = useEditorStore((s) => s.selectDesign);
 
@@ -36,7 +40,7 @@ export default function CreateDesignScreen() {
   };
 
   const handleGenerate = async () => {
-    const design = await generateWithAI(prompt);
+    const design = await generateWithAI(prompt, style ?? undefined);
     if (design) openInEditor(design);
   };
 
@@ -50,7 +54,7 @@ export default function CreateDesignScreen() {
     const design: TattooDesign = {
       id: Crypto.randomUUID(),
       ownerId,
-      title: 'Diseno propio',
+      title: 'Diseño propio',
       imageUrl: result.assets[0].uri,
       source: 'userUpload',
       createdAt: new Date().toISOString(),
@@ -59,28 +63,45 @@ export default function CreateDesignScreen() {
     openInEditor(design);
   };
 
+  const templates = designs.filter((d) => d.source === 'artistTemplate');
+
   return (
     <FlatList
       style={{ backgroundColor: colors.background }}
-      contentContainerStyle={styles.content}
-      data={designs}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      data={templates}
       keyExtractor={(d) => d.id}
       numColumns={2}
       columnWrapperStyle={styles.row}
       ListHeaderComponent={
         <View style={styles.header}>
+          <SectionHeader section="disena" />
+
+          <Text style={[typo.label, { color: colors.textMuted }]}>Describe tu idea</Text>
           <TextInput
             style={styles.input}
-            placeholder="Serpiente con flores, estilo japones, tinta negra"
+            placeholder="Serpiente con flores, estilo japonés, tinta negra"
             value={prompt}
             onChangeText={setPrompt}
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.placeholder}
             selectionColor={palette.fuchsia}
             multiline
           />
-          <AppButton label="Generar con IA" isLoading={isLoading} onPress={handleGenerate} />
+
+          <View style={styles.chipRow}>
+            {STYLES.map((s) => (
+              <Chip key={s} label={s} selected={style === s} onPress={() => setStyle(s)} tone="blue" />
+            ))}
+          </View>
+
+          <AppButton label="✦  Generar con IA" isLoading={isLoading} onPress={handleGenerate} />
+          <View style={{ height: 12 }} />
           <AppButton label="Subir imagen propia" variant="secondary" onPress={pickFromGallery} />
-          <Text style={styles.sectionTitle}>Disenos y plantillas disponibles</Text>
+
+          <View style={[styles.sectionHeader, { marginTop: 28 }]}>
+            <Text style={[typo.sectionTitle, { color: colors.textStrong }]}>Plantillas de artistas</Text>
+            <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Ver más</Text>
+          </View>
         </View>
       }
       renderItem={({ item }) => <TattooCard design={item} onPress={() => openInEditor(item)} />}
@@ -90,20 +111,21 @@ export default function CreateDesignScreen() {
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
-    content: { padding: 16, gap: 12 },
-    header: { gap: 12, marginBottom: 8 },
+    content: { paddingHorizontal: 20, paddingBottom: 32 },
+    header: { gap: 12, marginBottom: 12 },
     input: {
       ...typo.body,
       color: colors.text,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.primary,
       borderRadius: 18,
       padding: 14,
       minHeight: 88,
       textAlignVertical: 'top',
     },
-    sectionTitle: { ...typo.sectionTitle, color: colors.textStrong, marginTop: 8 },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     row: { gap: 12 },
   });
 }

@@ -4,7 +4,6 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
-import { NeonWall } from '../../components/atoms/NeonWall';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { palette, type as typo, useTheme } from '../../theme';
@@ -12,8 +11,8 @@ import { palette, type as typo, useTheme } from '../../theme';
 /**
  * Pantalla "Crear cuenta". Si el proyecto de Supabase tiene
  * confirmacion por correo activada, `signUp` no devuelve sesion de
- * inmediato: se lo indicamos al usuario en vez de navegar al
- * dashboard sin estar realmente logueado.
+ * inmediato: se lo indicamos al usuario en vez de navegar a la app
+ * sin estar realmente logueado.
  */
 export default function RegisterScreen() {
   const router = useRouter();
@@ -31,32 +30,31 @@ export default function RegisterScreen() {
   const handleSubmit = async () => {
     const ok = await signUp(email.trim(), password, name.trim());
     if (!ok) return;
-    if (session) router.replace('/dashboard');
+    if (session) router.replace('/');
     else setNeedsConfirmation(true);
   };
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <NeonWall primary="blue" secondary="fuchsia" />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <BodyDraftLogo size={88} />
+        <BodyDraftLogo size={72} />
 
         {needsConfirmation ? (
           <View style={styles.form}>
             <Text style={styles.confirmText}>
               Te enviamos un correo a {email} para confirmar tu cuenta. Confirma y vuelve a iniciar sesión.
             </Text>
-            <AppButton label="Ir a iniciar sesión" onPress={() => router.replace('/login')} />
+            <AppButton label="Ir a iniciar sesión" onPress={() => router.replace('/auth/login')} />
           </View>
         ) : (
           <View style={styles.form}>
             <TextInput
               style={styles.input}
               placeholder="Nombre"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={colors.placeholder}
               selectionColor={palette.blue}
               value={name}
               onChangeText={setName}
@@ -64,7 +62,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="Correo"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={colors.placeholder}
               selectionColor={palette.blue}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -74,7 +72,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="Contraseña"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={colors.placeholder}
               selectionColor={palette.blue}
               secureTextEntry
               value={password}
@@ -91,7 +89,7 @@ export default function RegisterScreen() {
               disabled={!name || !email || !password}
             />
 
-            <Pressable onPress={() => router.push('/login')} hitSlop={12}>
+            <Pressable onPress={() => router.push('/auth/login')} hitSlop={12}>
               <Text style={styles.link}>¿Ya tienes cuenta? Inicia sesión</Text>
             </Pressable>
           </View>
@@ -111,7 +109,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       color: colors.text,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.border,
       borderRadius: 18,
       padding: 14,
     },

@@ -4,15 +4,14 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
-import { NeonWall } from '../../components/atoms/NeonWall';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { palette, type as typo, useTheme } from '../../theme';
 
 /**
  * Pantalla "Iniciar sesion". Al loguearse exitosamente navega a una
- * pantalla DISTINTA (el dashboard, ver (app)/dashboard.tsx) en vez de
- * quedarse en login o solo cambiar de estado en el mismo lugar.
+ * pantalla DISTINTA (la app con pestanas, "/") en vez de quedarse en
+ * login o solo cambiar de estado en el mismo lugar.
  */
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,23 +26,22 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     const ok = await signIn(email.trim(), password);
-    if (ok) router.replace('/dashboard');
+    if (ok) router.replace('/');
   };
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <NeonWall />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <BodyDraftLogo size={88} />
+        <BodyDraftLogo size={72} />
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
             placeholder="Correo"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.placeholder}
             selectionColor={palette.fuchsia}
             autoCapitalize="none"
             keyboardType="email-address"
@@ -53,7 +51,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="Contraseña"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.placeholder}
             selectionColor={palette.fuchsia}
             secureTextEntry
             value={password}
@@ -69,7 +67,7 @@ export default function LoginScreen() {
             disabled={!email || !password}
           />
 
-          <Pressable onPress={() => router.push('/register')} hitSlop={12}>
+          <Pressable onPress={() => router.push('/auth/register')} hitSlop={12}>
             <Text style={styles.link}>¿No tienes cuenta? Crea una</Text>
           </Pressable>
         </View>
@@ -88,7 +86,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       color: colors.text,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.border,
       borderRadius: 18,
       padding: 14,
     },

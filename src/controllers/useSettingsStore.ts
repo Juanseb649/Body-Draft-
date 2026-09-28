@@ -1,0 +1,72 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+
+export type ThemePreference = 'system' | 'light' | 'dark';
+export type NeonIntensity = 'soft' | 'medium' | 'intense';
+export type ReminderLeadHours = 2 | 24 | 48;
+export type AccountRole = 'client' | 'artist';
+export type Locale = 'es' | 'en';
+
+interface SettingsState {
+  appearance: {
+    theme: ThemePreference;
+    neonIntensity: NeonIntensity;
+    reduceMotion: boolean;
+  };
+  notifications: {
+    appointmentReminder: boolean;
+    reminderLeadHours: ReminderLeadHours;
+    artistMessages: boolean;
+    news: boolean;
+  };
+  account: {
+    role: AccountRole;
+    locale: Locale;
+  };
+
+  setTheme: (theme: ThemePreference) => void;
+  setNeonIntensity: (value: NeonIntensity) => void;
+  setReduceMotion: (value: boolean) => void;
+  setAppointmentReminder: (value: boolean) => void;
+  setReminderLeadHours: (value: ReminderLeadHours) => void;
+  setArtistMessages: (value: boolean) => void;
+  setNews: (value: boolean) => void;
+  setRole: (value: AccountRole) => void;
+  setLocale: (value: Locale) => void;
+}
+
+/**
+ * Controller de la pantalla "Ajustes" (guia de diseno, seccion
+ * "Sección de ajustes"). Persistido con AsyncStorage — la guia sugiere
+ * expo-sqlite/kv-store; se uso AsyncStorage por ser el storage que ya
+ * esta instalado para la sesion de Supabase, con la misma clave/valor
+ * documentados en la tabla de la guia.
+ */
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      appearance: { theme: 'system', neonIntensity: 'medium', reduceMotion: false },
+      notifications: {
+        appointmentReminder: true,
+        reminderLeadHours: 24,
+        artistMessages: true,
+        news: false,
+      },
+      account: { role: 'client', locale: 'es' },
+
+      setTheme: (theme) => set((s) => ({ appearance: { ...s.appearance, theme } })),
+      setNeonIntensity: (neonIntensity) => set((s) => ({ appearance: { ...s.appearance, neonIntensity } })),
+      setReduceMotion: (reduceMotion) => set((s) => ({ appearance: { ...s.appearance, reduceMotion } })),
+      setAppointmentReminder: (appointmentReminder) =>
+        set((s) => ({ notifications: { ...s.notifications, appointmentReminder } })),
+      setReminderLeadHours: (reminderLeadHours) =>
+        set((s) => ({ notifications: { ...s.notifications, reminderLeadHours } })),
+      setArtistMessages: (artistMessages) => set((s) => ({ notifications: { ...s.notifications, artistMessages } })),
+      setNews: (news) => set((s) => ({ notifications: { ...s.notifications, news } })),
+      setRole: (role) => set((s) => ({ account: { ...s.account, role } })),
+      setLocale: (locale) => set((s) => ({ account: { ...s.account, locale } })),
+    }),
+    { name: 'bodydraft.settings', storage: createJSONStorage(() => AsyncStorage) },
+  ),
+);
