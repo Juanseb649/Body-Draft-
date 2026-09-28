@@ -22,16 +22,23 @@ export function SectionLogo({
   const fontSize = compact ? 56 : 112;
   const iconSize = compact ? 72 : 190;
 
+  // Misma tecnica que BodyDraftLogo: la palabra vive en una caja de altura
+  // fija (basada en el line-height viejo) para que un lineHeight mas
+  // generoso (evita recortar los bucles del cursivo) no desplace el swoosh.
+  const wordBoxHeight = fontSize * 1.05;
+
   return (
     <View style={[compact ? styles.row : styles.column, style]} accessible accessibilityRole="header" accessibilityLabel={label}>
       <SectionIcon section={section} size={iconSize} />
       <View style={compact ? styles.wordCompact : styles.word}>
-        <NeonText
-          tone={word}
-          style={[styles.text, { fontSize, lineHeight: fontSize * 1.05, paddingHorizontal: fontSize * 0.12 }]}
-        >
-          {label}
-        </NeonText>
+        <View style={{ height: wordBoxHeight, justifyContent: 'center' }}>
+          <NeonText
+            tone={word}
+            style={[styles.text, { fontSize, lineHeight: fontSize * 1.3, paddingHorizontal: fontSize * 0.12 }]}
+          >
+            {label}
+          </NeonText>
+        </View>
         <NeonSwoosh
           width={fontSize * 1.9}
           tone={swoosh}
@@ -56,6 +63,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   word: { alignItems: 'center', marginTop: -16 },
   wordCompact: { alignItems: 'flex-start' },
-  text: { fontFamily: fonts.logo, includeFontPadding: false },
-  header: { fontFamily: fonts.logo, fontSize: 38, lineHeight: 46, paddingHorizontal: 6, includeFontPadding: false },
+  text: { fontFamily: fonts.logo },
+  header: { fontFamily: fonts.logo, fontSize: 32, lineHeight: 32 * 1.3, paddingHorizontal: 6 },
 });

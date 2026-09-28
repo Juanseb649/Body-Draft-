@@ -1,16 +1,15 @@
+/** Tonos crudos de marca (tubos de neon). Fijos: se ven igual en ambos temas. */
 export const palette = {
   fuchsia: '#FF2BD6',
   fuchsiaDeep: '#C4009E',
   fuchsiaCore: '#FFE6FA',
   fuchsiaSoft: '#FF9BEB',
-  fuchsiaLight: '#FF7BE6',
   onFuchsia: '#1A0016',
 
   blue: '#22D3FF',
   blueDeep: '#0A7CFF',
   blueCore: '#E3FAFF',
   blueSoft: '#9BEBFF',
-  blueLight: '#BFEFFF',
   onBlue: '#00202A',
 
   amber: '#FFD23F',
@@ -19,49 +18,50 @@ export const palette = {
   amberSoft: '#FFE58A',
   onAmber: '#2A2000',
 
-  night: '#140B1F',
-  wall: '#120A1C',
-  ink: '#0F0818',
-  void: '#0B0612',
-
   white: '#FFFFFF',
-  text: '#EDE6F2',
-  textMuted: '#C9BFD3',
+} as const;
+
+/**
+ * Tokens de color (src/theme/colors.ts en la guia de diseno). Mismo
+ * nombre en ambos temas; el resto del codigo solo debe leer
+ * `useTheme().colors.token`, nunca un hex suelto.
+ */
+export const darkColors = {
+  background: '#120A1C',
+  surface: '#1A1026',
+  surfaceSunken: '#0F0818',
   border: 'rgba(255,255,255,0.12)',
-  borderStrong: 'rgba(255,255,255,0.2)',
+  textStrong: '#FFFFFF',
+  text: '#EDE6F2',
+  textMuted: '#B9AEC6',
+  placeholder: '#8B7E98',
+  primary: '#FF2BD6',
+  onPrimary: '#1A0016',
+  primaryTint: 'rgba(255,43,214,0.18)',
+  secondary: '#22D3FF',
+  secondaryTint: 'rgba(34,211,255,0.14)',
+  accent: '#FFD23F',
+  success: '#4BE3A5',
   danger: '#FF6B8A',
 } as const;
 
-export const darkColors = {
-  background: palette.wall,
-  surface: palette.night,
-  surfaceRaised: '#1C1129',
-  header: palette.ink,
-  text: palette.text,
-  textMuted: palette.textMuted,
-  textStrong: palette.white,
-  border: palette.border,
-  borderStrong: palette.borderStrong,
-  primary: palette.fuchsia,
-  secondary: palette.blue,
-  accent: palette.amber,
-  danger: palette.danger,
-} as const;
-
 export const lightColors = {
-  background: '#FAF7FC',
+  background: '#FBF7F4',
   surface: '#FFFFFF',
-  surfaceRaised: '#F1E9F7',
-  header: '#FFFFFF',
-  text: '#2B1E35',
-  textMuted: '#6B5E75',
-  textStrong: '#150B1D',
-  border: 'rgba(20,11,31,0.10)',
-  borderStrong: 'rgba(20,11,31,0.18)',
-  primary: palette.fuchsiaDeep,
-  secondary: palette.blueDeep,
-  accent: palette.amberDeep,
-  danger: '#D6335A',
+  surfaceSunken: '#F3ECF0',
+  border: '#E6DCE3',
+  textStrong: '#1C1424',
+  text: '#1C1424',
+  textMuted: '#6B5E74',
+  placeholder: '#8A7D93',
+  primary: '#C0139E',
+  onPrimary: '#FFFFFF',
+  primaryTint: '#FFE3F7',
+  secondary: '#0A6C96',
+  secondaryTint: '#DDF6FF',
+  accent: '#8A5A00',
+  success: '#0B7A53',
+  danger: '#C8254A',
 } as const;
 
 export type ThemeColors = { [K in keyof typeof darkColors]: string };
@@ -71,6 +71,7 @@ export const colors = darkColors;
 
 export type GlowTone = 'fuchsia' | 'blue' | 'amber';
 
+/** Tonos del tubo de neon: core (mas claro) - soft - color - deep. */
 export const glow: Record<GlowTone, { core: string; soft: string; color: string; deep: string }> = {
   fuchsia: { core: palette.fuchsiaCore, soft: palette.fuchsiaSoft, color: palette.fuchsia, deep: palette.fuchsiaDeep },
   blue: { core: palette.blueCore, soft: palette.blueSoft, color: palette.blue, deep: palette.blueDeep },
