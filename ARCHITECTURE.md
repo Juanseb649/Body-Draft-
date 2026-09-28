@@ -73,23 +73,23 @@ src/
       _layout.tsx                 Stack; redirige a "/" si ya hay sesion
       login.tsx
       register.tsx
-    (tabs)/                      App con pestanas (grupo — no agrega segmento a la URL)
-      _layout.tsx                 Tabs; redirige a /welcome si NO hay sesion — ver seccion 6
-      index.tsx                    Inicio ("/")
+    (tabs)/                      Area autenticada (grupo — no agrega segmento a la URL)
+      _layout.tsx                 Stack (sin barra inferior); redirige a /welcome si NO hay sesion — ver seccion 6/7
+      index.tsx                    Inicio = el dashboard ("/"): grid de secciones (icono + nombre)
       disena.tsx                   Diseña
       agenda.tsx                   Agenda (Mis citas)
-      mensajes.tsx                 Mensajes (placeholder, sin backend de chat)
       ajustes.tsx                  Ajustes
-    editor/index.tsx              Crea (camara + ajustes) — pantalla apilada, sin tabs
+    editor/index.tsx              Crea (camara + ajustes) — pantalla apilada, con SectionHeader propio
     model3d/index.tsx             Explora (maniquin 3D) — apilada
     artists/index.tsx             Lista de tatuadores — apilada
     artists/[id].tsx              Perfil del artista — apilada
     appointment/[artistId].tsx    Agendar cita (calendario) — apilada
-    messages/[id].tsx             Chat (placeholder) — apilada
 
   components/                   VIEW — Atomic Design (no-route UI)
-    atoms/AppButton.tsx, Chip.tsx, Segmented.tsx, Spinner.tsx, NeonWall.tsx, ...
-    molecules/TattooCard.tsx, ArtistCard.tsx, BodyDraftLogo.tsx
+    atoms/AppButton.tsx, Chip.tsx, Segmented.tsx, Spinner.tsx, NeonWall.tsx,
+      SectionIcon.tsx + sectionIcons.ts (icono por seccion), useNeonFlicker.ts, ...
+    molecules/TattooCard.tsx, ArtistCard.tsx, BodyDraftLogo.tsx,
+      SectionLogo.tsx, SectionHeader.tsx (chevron de volver + icono + nombre)
     organisms/CameraOverlay.tsx, BodyModelViewer.tsx
 
   controllers/                  CONTROLLER — un store Zustand por flujo
@@ -290,18 +290,30 @@ Sin esto, `signUp`/`signIn`/`signOut` fallan (ver seccion 11).
 
 ---
 
-## 7. Navegacion por pestanas, sistema de diseno y tema
+## 7. Navegacion (dashboard), sistema de diseno y tema
 
-**Por que pestanas y no sidebar:** la primera version de esta pantalla
-usaba un Drawer (sidebar) con gesto estilo Twitter/X. La guia de diseno del
-proyecto ("Body Draft — App móvil y guía para código") especifica
-explicitamente una navegacion por **pestanas inferiores** (Inicio / Diseña
-/ Agenda / Mensajes / Ajustes, ver su seccion "Flujo de navegación y
-rutas"), asi que se reemplazo el Drawer por `(tabs)/_layout.tsx`
-(`Tabs` de `expo-router`) para seguir la guia al pie de la letra. Las
-pantallas que necesitan toda la pantalla (camara, calendario, perfil) viven
-**fuera** de `(tabs)/` como rutas apiladas sin barra de pestanas — ver el
-mapa de carpetas (seccion 2).
+**Historia de esta decision** (dos pivotes, en orden):
+
+1. La primera version usaba un Drawer (sidebar) con gesto estilo
+   Twitter/X.
+2. La guia de diseno del proyecto ("Body Draft — App móvil y guía para
+   código") especifica explicitamente una navegacion por **pestanas
+   inferiores**, asi que se reemplazo el Drawer por `Tabs` de
+   `expo-router` para seguir la guia al pie de la letra.
+3. Instruccion explicita posterior del usuario: sin barra inferior,
+   **dashboard** en su lugar, con el logo/icono de cada seccion y su
+   nombre al lado. `(tabs)/_layout.tsx` paso de `Tabs` a un `Stack` sin
+   barra visible, e `index.tsx` ("Inicio") se convirtio en ese dashboard:
+   una grilla con las secciones (Diseña, Crea, Agenda, Explora, Artistas,
+   Ajustes — Mensajes se elimino por completo a pedido del usuario, ver
+   seccion 12).
+
+Como ya no hay una barra persistente para volver, cada pantalla de
+seccion (incluidas las que viven **fuera** de `(tabs)/` como rutas
+apiladas: camara, calendario, perfil, maniquin 3D) usa
+`components/molecules/SectionHeader.tsx` (chevron de volver + su
+`SectionIcon` + nombre) para regresar al dashboard — ver el mapa de
+carpetas (seccion 2).
 
 **Sistema de diseno** (todo definido en la guia, implementado tal cual):
 
@@ -424,17 +436,17 @@ expo-sqlite, no toca Controllers ni Views.
 - Texturizado real del diseno sobre la malla 3D en `model3d/index.tsx`
   (`BodyModelViewer` ya renderiza un `.glb` de ejemplo; falta el asset real
   del maniquin y el pipeline de aplicar el PNG del diseno como decal).
-- Backend de mensajeria: `(tabs)/mensajes.tsx` y `messages/[id].tsx` son
-  solo la UI (estado local, sin persistencia ni tiempo real) — la guia de
-  diseno solo especifica las rutas, no un backend de chat. Cuando se
-  defina, lo natural es una tabla de Supabase + `supabase.channel(...)`
-  para tiempo real.
-- Animaciones de la guia no implementadas literalmente (encendido de neon
-  al abrir la app, trazo del subrayado, pulso de brillo continuo en el CTA
-  principal, brillo que barre mientras "Genera con IA" esta cargando): son
-  micro-interacciones decorativas sobre una app ya funcional, priorizadas
-  por debajo de tener cada pantalla y flujo completos. `theme/motion.ts` ya
-  tiene las duraciones/curvas listas para sumarlas.
+- Mensajeria: se elimino por completo a pedido del usuario (pantalla
+  `(tabs)/mensajes.tsx`, ruta `messages/[id].tsx`, entrada en el dashboard
+  y en `sectionIcons.ts`). Si se vuelve a pedir, lo natural es una tabla
+  de Supabase + `supabase.channel(...)` para tiempo real.
+- Encendido/pulso de neon: implementado (`useNeonFlicker.ts`, usado por
+  `NeonText`, `SectionIcon` y `NeonSwoosh`) y apagable desde "Reducir
+  animaciones" en Ajustes. Quedan sin implementar micro-interacciones mas
+  puntuales de la guia (trazo del subrayado, brillo que barre mientras
+  "Genera con IA" esta cargando) — decorativas, priorizadas por debajo de
+  tener cada pantalla y flujo completos. `theme/motion.ts` ya tiene las
+  duraciones/curvas listas para sumarlas.
 - "Privacidad y datos", "Centro de ayuda" y "Términos y privacidad" en
   Ajustes son filas sin pantalla destino todavia (placeholders visuales).
 - Endurecer el storage de sesion de Supabase: hoy usa `AsyncStorage` plano;
