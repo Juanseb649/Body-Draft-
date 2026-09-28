@@ -1,9 +1,10 @@
 import { View } from 'react-native';
 
-import { bodyModelService } from '../../core/services';
-import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
-import { useEditorStore } from '../../controllers/useEditorStore';
-import { BODY_ZONE_LABELS } from '../../models/bodyZone';
+import { BodyModelViewer } from '../../../components/organisms/BodyModelViewer';
+import { bodyModelService } from '../../../core/services';
+import { useEditorStore } from '../../../controllers/useEditorStore';
+import { BODY_ZONE_LABELS } from '../../../models/bodyZone';
+import { useTheme } from '../../../theme';
 
 /**
  * Pantalla "Maniquin 3D": la misma propuesta (useEditorStore) vista
@@ -15,11 +16,12 @@ import { BODY_ZONE_LABELS } from '../../models/bodyZone';
  * y ARCHITECTURE.md).
  */
 export default function BodyModelScreen() {
+  const { colors } = useTheme();
   const { bodyZone, silhouette } = useEditorStore((s) => s);
   const modelUrl = bodyModelService.modelAssetFor(silhouette);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <BodyModelViewer modelUrl={modelUrl} alt={`Maniquin 3D - ${BODY_ZONE_LABELS[bodyZone]}`} />
     </View>
   );

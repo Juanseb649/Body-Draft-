@@ -1,13 +1,14 @@
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
-import { Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { AppButton } from '../../components/atoms/AppButton';
-import { CameraOverlay } from '../../components/organisms/CameraOverlay';
-import { useCameraController } from '../../controllers/useCameraController';
-import { useDesignStore } from '../../controllers/useDesignStore';
-import { useEditorStore } from '../../controllers/useEditorStore';
-import { BODY_ZONES, BODY_ZONE_LABELS, type BodyZone } from '../../models/bodyZone';
+import { AppButton } from '../../../components/atoms/AppButton';
+import { CameraOverlay } from '../../../components/organisms/CameraOverlay';
+import { useCameraController } from '../../../controllers/useCameraController';
+import { useDesignStore } from '../../../controllers/useDesignStore';
+import { useEditorStore } from '../../../controllers/useEditorStore';
+import { BODY_ZONES, BODY_ZONE_LABELS, type BodyZone } from '../../../models/bodyZone';
+import { palette, type as typo, useTheme } from '../../../theme';
 
 /**
  * Pantalla "Editor": camara en vivo + diseno superpuesto, con
@@ -17,10 +18,13 @@ import { BODY_ZONES, BODY_ZONE_LABELS, type BodyZone } from '../../models/bodyZo
  */
 export default function TattooEditorScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { permission, requestPermission, cameraRef, capture } = useCameraController();
   const designs = useDesignStore((s) => s.designs);
   const proposal = useEditorStore((s) => s);
   const design = designs.find((d) => d.id === proposal.designId);
+
+  const styles = createStyles(colors);
 
   if (!permission) return <View style={styles.center} />;
 
@@ -28,7 +32,7 @@ export default function TattooEditorScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.permissionText}>Necesitamos permiso de camara para continuar</Text>
-        <Button title="Dar permiso" onPress={requestPermission} />
+        <AppButton label="Dar permiso" onPress={requestPermission} />
       </View>
     );
   }
@@ -44,7 +48,9 @@ export default function TattooEditorScreen() {
     <View style={styles.container}>
       <View style={styles.cameraContainer}>
         <CameraOverlay cameraRef={cameraRef} design={design} />
-        <AppButton label="Ver en maniquin 3D" onPress={() => router.push('/model3d')} />
+        <View style={styles.floating}>
+          <AppButton label="Ver en maniquí 3D" variant="secondary" compact onPress={() => router.push('/model3d')} />
+        </View>
       </View>
 
       <ScrollView style={styles.controls} contentContainerStyle={styles.controlsContent}>
@@ -54,8 +60,10 @@ export default function TattooEditorScreen() {
             <AppButton
               key={zone}
               label={BODY_ZONE_LABELS[zone]}
+              variant="secondary"
+              compact
               onPress={() => proposal.setZone(zone)}
-              disabled={proposal.bodyZone === zone}
+              selected={proposal.bodyZone === zone}
             />
           ))}
         </View>
@@ -66,6 +74,9 @@ export default function TattooEditorScreen() {
           maximumValue={2.5}
           value={proposal.placement.scale}
           onValueChange={proposal.scale}
+          minimumTrackTintColor={palette.fuchsia}
+          maximumTrackTintColor={colors.borderStrong}
+          thumbTintColor={palette.fuchsiaCore}
         />
 
         <Text style={styles.label}>Opacidad</Text>
@@ -74,6 +85,9 @@ export default function TattooEditorScreen() {
           maximumValue={1}
           value={proposal.placement.opacity}
           onValueChange={proposal.setOpacity}
+          minimumTrackTintColor={palette.blue}
+          maximumTrackTintColor={colors.borderStrong}
+          thumbTintColor={palette.blueCore}
         />
 
         <AppButton label="Guardar propuesta" onPress={handleSave} />
@@ -82,13 +96,16 @@ export default function TattooEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
-  permissionText: { textAlign: 'center' },
-  cameraContainer: { flex: 1 },
-  controls: { maxHeight: 320 },
-  controlsContent: { padding: 16, gap: 8 },
-  label: { fontWeight: '600', marginTop: 8 },
-  zoneList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
+    permissionText: { ...typo.body, color: colors.text, textAlign: 'center' },
+    cameraContainer: { flex: 1 },
+    floating: { position: 'absolute', left: 16, right: 16, bottom: 16 },
+    controls: { maxHeight: 320, backgroundColor: colors.header },
+    controlsContent: { padding: 16, gap: 8 },
+    label: { ...typo.sectionTitle, fontSize: 16, color: colors.textStrong, marginTop: 8 },
+    zoneList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  });
+}

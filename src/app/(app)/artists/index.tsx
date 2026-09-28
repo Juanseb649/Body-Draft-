@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 
-import { ArtistCard } from '../../components/molecules/ArtistCard';
-import { useArtistStore } from '../../controllers/useArtistStore';
+import { ArtistCard } from '../../../components/molecules/ArtistCard';
+import { useArtistStore } from '../../../controllers/useArtistStore';
+import { palette, useTheme } from '../../../theme';
 
 /**
  * Pantalla "Tatuadores": lista de tatuadores con su especialidad y
@@ -11,6 +12,7 @@ import { useArtistStore } from '../../controllers/useArtistStore';
  */
 export default function ArtistsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { artists, isLoading, loadArtists } = useArtistStore();
 
   useEffect(() => {
@@ -19,8 +21,8 @@ export default function ArtistsScreen() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator color={palette.fuchsia} />
       </View>
     );
   }
@@ -29,6 +31,8 @@ export default function ArtistsScreen() {
     <FlatList
       data={artists}
       keyExtractor={(a) => a.id}
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingVertical: 12 }}
       renderItem={({ item }) => (
         <ArtistCard artist={item} onPress={() => router.push(`/appointment/${item.id}`)} />
       )}
