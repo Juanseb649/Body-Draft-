@@ -1,6 +1,6 @@
 import type { GlowTone } from '../../theme';
 
-export type SectionKey = 'disena' | 'crea' | 'agenda' | 'explora' | 'artistas' | 'mensajes' | 'ajustes';
+export type SectionKey = 'disena' | 'crea' | 'agenda' | 'explora' | 'artistas' | 'ajustes';
 
 type Stroke = { d: string; tone: GlowTone; width?: number; transform?: string };
 
@@ -60,15 +60,6 @@ export const SECTIONS: Record<
       { tone: 'amber', transform: 'rotate(40 100 100)', d: 'M102 18 A13 13 0 0 1 115 31 V97 A13 13 0 0 1 102 110 A13 13 0 0 1 89 97 V31 A13 13 0 0 1 102 18 Z' },
       { tone: 'amber', transform: 'rotate(40 100 100)', d: 'M93 60 H111 M93 70 H111 M93 80 H111 M92 110 L96 132 L108 132 L112 110 M96 132 L102 158 L108 132 M102 158 V170' },
       { tone: 'fuchsia', d: 'M55 160 C 68 188, 108 190, 124 166 S 162 146, 182 172' },
-    ],
-  },
-  mensajes: {
-    label: 'Mensajes',
-    word: 'blue',
-    swoosh: 'fuchsia',
-    strokes: [
-      { tone: 'blue', d: 'M36 62 C 36 48, 46 40, 60 40 H140 C 154 40, 164 48, 164 62 V114 C 164 128, 154 136, 140 136 H88 L56 164 L62 136 H60 C 46 136, 36 128, 36 114 Z' },
-      { tone: 'fuchsia', width: 12, d: 'M72 88 h0.01 M100 88 h0.01 M128 88 h0.01' },
     ],
   },
   ajustes: {

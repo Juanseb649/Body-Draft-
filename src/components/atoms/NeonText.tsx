@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import Animated from 'react-native-reanimated';
 
-import { glow, type GlowTone } from '../../theme';
+import { logoToneColor, useTheme, type GlowTone } from '../../theme';
+import { useNeonFlicker } from './useNeonFlicker';
 
-const HALO_RADII = [22, 10, 4];
-
+/** Texto de "logo" solido y plano (sin difuminado), con encendido/pulso. */
 export function NeonText({
   children,
   tone = 'fuchsia',
@@ -18,48 +19,15 @@ export function NeonText({
   containerStyle?: StyleProp<ViewStyle>;
   accessibilityRole?: 'header' | 'text';
 }) {
-  const g = glow[tone];
+  const { scheme } = useTheme();
+  const color = logoToneColor(scheme, tone);
+  const flicker = useNeonFlicker();
 
   return (
     <View style={containerStyle}>
-      {HALO_RADII.map((radius, i) => (
-        <Text
-          key={radius}
-          aria-hidden
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          style={[
-            style,
-            styles.halo,
-            {
-              color: i === 0 ? g.deep : g.color,
-              textShadowColor: i === 0 ? g.deep : g.color,
-              textShadowRadius: radius,
-            },
-          ]}
-        >
-          {children}
-        </Text>
-      ))}
-      <Text accessibilityRole={accessibilityRole} style={[style, styles.core, { color: g.core }]}>
+      <Animated.Text accessibilityRole={accessibilityRole} style={[style, { color }, flicker]}>
         {children}
-      </Text>
+      </Animated.Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  halo: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    textShadowOffset: { width: 0, height: 0 },
-  },
-  core: {
-    textShadowColor: '#FFFFFF',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 2,
-  },
-});

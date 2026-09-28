@@ -77,3 +77,22 @@ export const glow: Record<GlowTone, { core: string; soft: string; color: string;
   blue: { core: palette.blueCore, soft: palette.blueSoft, color: palette.blue, deep: palette.blueDeep },
   amber: { core: palette.amberCore, soft: palette.amberSoft, color: palette.amber, deep: palette.amberDeep },
 };
+
+/**
+ * En modo claro, fuchsia y amber (pensados para brillar sobre un fondo
+ * oscuro) casi no se leen sobre el fondo casi blanco de `lightColors` — se
+ * reemplazan por rojo y azul oscuro. `blue` no cambia porque ya se lee
+ * bien en ambos temas. Usado por los "logos" (NeonText, SectionIcon,
+ * NeonSwoosh), no por los botones/chips (que ya resuelven su color por
+ * `useTheme().colors`).
+ */
+const LOGO_TONE_LIGHT_OVERRIDE: Partial<Record<GlowTone, string>> = {
+  fuchsia: '#D0142E',
+  amber: '#123A63',
+};
+
+/** Color solido y plano de un "logo" para el tema dado — sin difuminado. */
+export function logoToneColor(scheme: 'light' | 'dark', tone: GlowTone): string {
+  if (scheme === 'light') return LOGO_TONE_LIGHT_OVERRIDE[tone] ?? glow[tone].color;
+  return glow[tone].color;
+}

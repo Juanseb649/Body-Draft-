@@ -1,51 +1,34 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
+import { useSettingsStore } from '../controllers/useSettingsStore';
 import { darkColors, lightColors, type ThemeColors } from './colors';
 
 export type Scheme = 'light' | 'dark';
 
-const STORAGE_KEY = 'bodydraft.themeScheme';
-
 interface ThemeContextValue {
   scheme: Scheme;
   colors: ThemeColors;
-  toggleTheme: () => void;
-  setScheme: (scheme: Scheme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 /**
- * Interruptor real claro/oscuro: arranca con la preferencia del sistema,
- * la persiste en AsyncStorage y la expone via `useTheme()`. Todo
- * componente que necesite colores debe usar este hook en vez de
- * importar `colors` de forma estatica (ver theme/colors.ts).
+ * Resuelve el tema exactamente como documenta la guia de diseno
+ * ("Cómo se resuelve el tema"): la preferencia (`appearance.theme`,
+ * persistida en useSettingsStore) puede ser 'system', y en ese caso se
+ * seguir la preferencia del SO; si no, se usa el valor explicito.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  const [scheme, setSchemeState] = useState<Scheme>(systemScheme === 'light' ? 'light' : 'dark');
+  const themePreference = useSettingsStore((s) => s.appearance.theme);
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
-      if (saved === 'light' || saved === 'dark') setSchemeState(saved);
-    });
-  }, []);
-
-  const setScheme = useCallback((next: Scheme) => {
-    setSchemeState(next);
-    AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
-  }, []);
-
-  const toggleTheme = useCallback(
-    () => setScheme(scheme === 'dark' ? 'light' : 'dark'),
-    [scheme, setScheme],
-  );
+  const resolvedSystemScheme: Scheme = systemScheme === 'light' ? 'light' : 'dark';
+  const scheme: Scheme = themePreference === 'system' ? resolvedSystemScheme : themePreference;
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ scheme, colors: scheme === 'dark' ? darkColors : lightColors, toggleTheme, setScheme }),
-    [scheme, toggleTheme, setScheme],
+    () => ({ scheme, colors: scheme === 'dark' ? darkColors : lightColors }),
+    [scheme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
