@@ -15,7 +15,7 @@ export function BodyModelViewer({ modelUrl, alt }: { modelUrl: string; alt: stri
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
         <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
         <style>
-          html, body { margin: 0; height: 100%; background: #111; }
+          html, body { margin: 0; height: 100%; background: #120A1C; }
           model-viewer { width: 100%; height: 100%; }
         </style>
       </head>
@@ -35,7 +35,7 @@ export function BodyModelViewer({ modelUrl, alt }: { modelUrl: string; alt: stri
     <WebView
       originWhitelist={['*']}
       source={{ html }}
-      style={{ flex: 1, backgroundColor: '#111' }}
+      style={{ flex: 1, backgroundColor: '#120A1C' }}
       javaScriptEnabled
     />
   );

@@ -2,6 +2,8 @@ import { AppointmentRepository } from '../data/appointmentRepository';
 import { ArtistRepository } from '../data/artistRepository';
 import { DesignRepository } from '../data/designRepository';
 import type { AIService } from '../services/aiService';
+import type { AuthService } from '../services/authService';
+import { SupabaseAuthService } from '../services/authService';
 import { BodyModelServiceImpl } from '../services/bodyModelService';
 import { GeminiAIService } from '../services/geminiAiService';
 import { InMemoryStorageService } from '../services/inMemoryStorageService';
@@ -22,6 +24,7 @@ const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
 export const storageService: StorageService = new InMemoryStorageService();
 export const aiService: AIService = new GeminiAIService(GEMINI_API_KEY);
 export const bodyModelService = new BodyModelServiceImpl();
+export const authService: AuthService = new SupabaseAuthService();
 
 export const designRepository = new DesignRepository(storageService, aiService);
 export const artistRepository = new ArtistRepository();
