@@ -68,28 +68,33 @@ absorbe esa decision (ver `data/designRepository.ts`).
 src/
   app/                          VIEW — rutas (Expo Router, file-based)
     _layout.tsx                  Stack raiz: fuentes, gestos, tema, auth listener
-    index.tsx                    Puerta de entrada: redirige a (auth) o (app) segun sesion
-    (auth)/                      Grupo SIN sesion (Expo Router route group)
-      _layout.tsx                 Stack; redirige a /dashboard si ya hay sesion
+    welcome.tsx                   Bienvenida (primera pantalla, sin sesion)
+    auth/
+      _layout.tsx                 Stack; redirige a "/" si ya hay sesion
       login.tsx
       register.tsx
-    (app)/                       Grupo CON sesion
-      _layout.tsx                 Drawer (sidebar) — ver seccion 6
-      dashboard.tsx                Home del area autenticada
-      design/create.tsx            Crear diseno
-      editor/index.tsx             Editor (camara + ajustes)
-      model3d/index.tsx            Maniquin 3D
-      artists/index.tsx            Tatuadores
-      appointment/[artistId].tsx   Agendar cita (ruta dinamica, sin item en el sidebar)
-      appointment/mine.tsx         Mis citas
+    (tabs)/                      App con pestanas (grupo — no agrega segmento a la URL)
+      _layout.tsx                 Tabs; redirige a /welcome si NO hay sesion — ver seccion 6
+      index.tsx                    Inicio ("/")
+      disena.tsx                   Diseña
+      agenda.tsx                   Agenda (Mis citas)
+      mensajes.tsx                 Mensajes (placeholder, sin backend de chat)
+      ajustes.tsx                  Ajustes
+    editor/index.tsx              Crea (camara + ajustes) — pantalla apilada, sin tabs
+    model3d/index.tsx             Explora (maniquin 3D) — apilada
+    artists/index.tsx             Lista de tatuadores — apilada
+    artists/[id].tsx              Perfil del artista — apilada
+    appointment/[artistId].tsx    Agendar cita (calendario) — apilada
+    messages/[id].tsx             Chat (placeholder) — apilada
 
   components/                   VIEW — Atomic Design (no-route UI)
-    atoms/AppButton.tsx, NeonWall.tsx, ...
+    atoms/AppButton.tsx, Chip.tsx, Segmented.tsx, Spinner.tsx, NeonWall.tsx, ...
     molecules/TattooCard.tsx, ArtistCard.tsx, BodyDraftLogo.tsx
-    organisms/CameraOverlay.tsx, BodyModelViewer.tsx, DrawerContent.tsx
+    organisms/CameraOverlay.tsx, BodyModelViewer.tsx
 
   controllers/                  CONTROLLER — un store Zustand por flujo
     useAuthStore.ts               sesion/usuario + signUp/signIn/signOut
+    useSettingsStore.ts           apariencia/notificaciones/cuenta (persistido)
     useDesignStore.ts
     useEditorStore.ts
     useCameraController.ts       (hook, no store: envuelve el ref de camara)
@@ -113,10 +118,17 @@ src/
     services.ts                  cableado de DI (que implementacion usa cada interfaz)
 
   theme/
-    colors.ts                    palette (marca, fija) + darkColors/lightColors
-    ThemeContext.tsx               ThemeProvider + useTheme() — interruptor real
-    typography.ts
+    colors.ts                    tokens exactos de la guia de diseno (darkColors/lightColors)
+    ThemeContext.tsx               ThemeProvider + useTheme() — resuelve appearance.theme
+    typography.ts                 escala tipografica (Sacramento/TiltNeon/Manrope)
+    motion.ts                     duraciones y curvas (react-native-reanimated)
 ```
+
+> Todo el sistema de diseno (colores, tipografia, botones, animaciones,
+> ajustes) sigue al pie de la letra "Body Draft — App móvil y guía para
+> código", el documento de diseno del proyecto. Cuando ese documento y el
+> codigo difieran, el documento manda; si encuentras una discrepancia,
+> es un bug de implementacion.
 
 ---
 
@@ -151,36 +163,33 @@ Artist 1───* TattooDesign (source: 'artistTemplate')
 ## 4. Flujo principal (mapeado a rutas/Controllers)
 
 ```text
-app/index.tsx ──> (sin sesion) app/(auth)/login.tsx o register.tsx
-   │                              │ useAuthStore.signIn/signUp
-   │                              ▼ router.replace('/dashboard')
-   └──> (con sesion) ────> app/(app)/dashboard.tsx  ← pantalla distinta a login
-                               │ (AppButton "Crear diseno", o sidebar)
-                               ▼
-app/(app)/design/create.tsx  ──uses──> useDesignStore ──> designRepository ──> aiService / storageService
+app/welcome.tsx ──> "Ya tengo cuenta" ──> app/auth/login.tsx
+       │                                      │ useAuthStore.signIn
+       │ "Comenzar"                           ▼ router.replace('/')
+       ▼                                 (tabs)/index.tsx  ← pantalla distinta a login
+app/auth/register.tsx ──useAuthStore.signUp──┘
+                                                  │ (AppButton "Crear diseño", o tab "Diseña")
+                                                  ▼
+(tabs)/disena.tsx  ──uses──> useDesignStore ──> designRepository ──> aiService / storageService
    │ (elige/crea diseno)
    ▼
 useEditorStore.selectDesign(designId)
    │
    ▼
-app/(app)/editor/index.tsx  ──uses──> useEditorStore + useCameraController
+app/editor/index.tsx  ──uses──> useEditorStore + useCameraController
    │  CameraOverlay (organism): arrastre → editor.move(...)
    │
-   ├──(boton "Ver en maniquin 3D")──> app/(app)/model3d/index.tsx ──uses──> useEditorStore (mismo estado)
+   ├──(badge "3D")──> app/model3d/index.tsx ──uses──> useEditorStore (mismo estado)
    │
    ▼ (AppButton "Guardar propuesta")
 useEditorStore.save() ──> designRepository.saveProposal()
    ▼
-app/(app)/artists/index.tsx ──uses──> useArtistStore ──> artistRepository
-   │ (elige tatuador)
+app/artists/index.tsx ──uses──> useArtistStore ──> artistRepository
+   │ (fila → perfil, boton "Agendar" → directo a agendar)
    ▼
-app/(app)/appointment/[artistId].tsx ──uses──> useAppointmentStore ──> appointmentRepository
+app/artists/[id].tsx  o  app/appointment/[artistId].tsx ──uses──> useAppointmentStore ──> appointmentRepository
    ▼
-Confirmacion → Dashboard
-
-En cualquier punto dentro de (app)/, deslizar desde el borde izquierdo abre
-el sidebar (DrawerContent) con acceso directo a cualquier seccion + tema +
-cerrar sesion — ver seccion 7.
+Confirmacion → (tabs)/agenda.tsx ("Mis citas")
 ```
 
 ---
@@ -240,21 +249,27 @@ automaticamente cuando cambia la sesion, y engancha `AppState` para
 pausar/reanudar el auto-refresh del token segun la app esta en foreground o
 background.
 
-**Navegacion segun sesion, con Expo Router route groups:**
+**Navegacion segun sesion:**
 
 ```text
 app/
-  index.tsx        "/" — puerta de entrada: espera isInitialized y
-                    hace <Redirect> a (auth)/login o (app)/dashboard
-  (auth)/            grupo SIN sesion — no agrega segmento a la URL
-    _layout.tsx        Stack; si ya hay sesion, <Redirect> a /dashboard
-    login.tsx           al loguear, router.replace('/dashboard') — una
-                         pantalla DISTINTA, no el mismo login re-pintado
+  welcome.tsx          primera pantalla, sin sesion
+  auth/
+    _layout.tsx          Stack; si ya hay sesion, <Redirect> a "/"
+    login.tsx             al loguear, router.replace('/') — una
+                           pantalla DISTINTA, no el mismo login re-pintado
     register.tsx
-  (app)/              grupo CON sesion
-    _layout.tsx        Drawer (sidebar); si NO hay sesion, <Redirect> a /login
-    dashboard.tsx ...  (resto de las pantallas, ver seccion 7)
+  (tabs)/                grupo — no agrega segmento a la URL
+    _layout.tsx            Tabs; si NO hay sesion, <Redirect> a /welcome
+    index.tsx ...          (resto de las pantallas, ver seccion 7)
 ```
+
+No hay un `index.tsx` suelto en la raiz de `app/`: como `(tabs)` es un
+grupo, `(tabs)/index.tsx` ya resuelve el path `"/"` — un `index.tsx`
+adicional fuera del grupo colisionaria con esa misma ruta. La decision de
+"a donde entrar primero" no vive en un archivo dedicado sino en el propio
+guard de `(tabs)/_layout.tsx`: si no hay sesion, ese guard redirige a
+`/welcome` en cuanto Expo Router intenta resolver `"/"`.
 
 Los dos `_layout.tsx` de cada grupo son los que realmente "cuidan la
 puerta": `(app)/_layout.tsx` redirige a login si `session` es null, y
@@ -275,47 +290,55 @@ Sin esto, `signUp`/`signIn`/`signOut` fallan (ver seccion 11).
 
 ---
 
-## 7. Sidebar (Drawer) y tema claro/oscuro
+## 7. Navegacion por pestanas, sistema de diseno y tema
 
-**Sidebar:** `(app)/_layout.tsx` usa `Drawer` de `expo-router/drawer`
-(bundlado en `expo-router` desde SDK 56+, sobre `react-native-drawer-layout`
-+ `react-native-reanimated`/`react-native-worklets`). El contenido del
-sidebar es un componente 100% propio, `DrawerContent`
-(`components/organisms/DrawerContent.tsx`): logo, lista de secciones
-(navega con `router.push`), el interruptor de tema y "Cerrar sesion" — no
-depende de las props que Drawer inyecta, asi que no esta atado a la forma
-exacta de esa API.
+**Por que pestanas y no sidebar:** la primera version de esta pantalla
+usaba un Drawer (sidebar) con gesto estilo Twitter/X. La guia de diseno del
+proyecto ("Body Draft — App móvil y guía para código") especifica
+explicitamente una navegacion por **pestanas inferiores** (Inicio / Diseña
+/ Agenda / Mensajes / Ajustes, ver su seccion "Flujo de navegación y
+rutas"), asi que se reemplazo el Drawer por `(tabs)/_layout.tsx`
+(`Tabs` de `expo-router`) para seguir la guia al pie de la letra. Las
+pantallas que necesitan toda la pantalla (camara, calendario, perfil) viven
+**fuera** de `(tabs)/` como rutas apiladas sin barra de pestanas — ver el
+mapa de carpetas (seccion 2).
 
-Para el efecto "estilo Twitter/X" (deslizar desde el borde izquierdo revela
-el sidebar *detras* del contenido, que se desliza para mostrarlo) se usa
-`screenOptions={{ drawerType: 'back' }}`: el sidebar queda fijo detras y la
-pantalla activa se desliza encima al arrastrar. Es el mismo mecanismo base
-que usa la app de Twitter/X. **Simplificacion consciente:** no se implemento
-el efecto adicional de que la tarjeta de contenido se *encoja* en escala
-mientras se desliza (el detalle mas fino de esa animacion) — requeriria
-leer el progreso del gesto con Reanimated y animar `transform: scale`
-manualmente, y el paquete que Expo Router usa para el Drawer no documenta un
-hook publico para eso. Con `drawerType: 'back'` el gesto de arrastre, la
-revelacion del sidebar detras del contenido y el cierre por swipe ya
-funcionan de forma nativa; la animacion de escala queda como posible
-refinamiento futuro (ver seccion 12).
+**Sistema de diseno** (todo definido en la guia, implementado tal cual):
 
-**Tema claro/oscuro:** `theme/ThemeContext.tsx` expone `ThemeProvider` +
-`useTheme()`. Arranca con la preferencia del sistema (`useColorScheme`),
-persiste la eleccion del usuario en `AsyncStorage`, y expone
-`{ scheme, colors, toggleTheme }`. `theme/colors.ts` separa dos capas:
+- `theme/colors.ts`: tokens exactos por nombre (`background`, `surface`,
+  `surfaceSunken`, `border`, `textStrong`, `text`, `textMuted`,
+  `placeholder`, `primary`, `onPrimary`, `primaryTint`, `secondary`,
+  `secondaryTint`, `accent`, `success`, `danger`) en `darkColors` y
+  `lightColors`. `palette`/`glow` (los tres tubos de neon: fuchsia, azul,
+  ambar) son fijos, iguales en ambos temas.
+- `theme/typography.ts`: la escala exacta de la guia (`logoHero`,
+  `logoSection`, `logoInline`, `logoTile`, `title`, `sectionTitle`,
+  `tagline`, `button`, `body`, `bodyStrong`, `label`, `caption`, `tab`)
+  sobre tres familias (`Sacramento`, `TiltNeon`, `Manrope`).
+- `theme/motion.ts`: duraciones (`fast`/`base`/`slow`/`intro`) y curvas
+  (`standard`/`exit`) para animar con `react-native-reanimated`.
+- `components/atoms/AppButton.tsx`, `Chip.tsx`, `Segmented.tsx`,
+  `Spinner.tsx`: los atomos reutilizables que documenta la guia
+  ("Botones y estados"). `AppButton` en oscuro es un tubo de neon (borde +
+  `boxShadow` de halo); en claro es solido/outline segun variante — la guia
+  es explicita en que "el neón no brilla sobre papel". La animacion de
+  presion (escala 0.97, resorte al soltar) usa Reanimated
+  (`useSharedValue` + `withSpring`), no solo `Pressable` opacity.
 
-- `palette` / `glow`: los acentos de marca (fuchsia/azul/ambar del efecto
-  neon) — **fijos**, se ven igual en ambos temas.
-- `darkColors` / `lightColors`: fondo, superficie y texto — estos si
-  cambian con el tema.
+**Tema claro/oscuro:** a diferencia de la primera version (un toggle suelto
+en el sidebar), ahora la preferencia de tema es un ajuste persistido mas —
+`appearance.theme` en `useSettingsStore` (`'system' | 'light' | 'dark'`,
+Zustand + `persist` sobre AsyncStorage). `theme/ThemeContext.tsx` solo
+*resuelve* esa preferencia contra `useColorScheme()` (si es `'system'`) y
+expone `{ scheme, colors }` de solo lectura via `useTheme()` — exactamente
+como lo documenta la guia en "Cómo se resuelve el tema". El control real
+(segmentado Sistema/Claro/Oscuro) vive en la pestana Ajustes
+(`(tabs)/ajustes.tsx`), no en un interruptor flotante.
 
 Cada pantalla/componente que necesita color llama a `useTheme()` y arma sus
 estilos con una funcion `createStyles(colors)` (en vez de un
-`StyleSheet.create` estatico con colores fijos), para que cambiar el
-interruptor re-renderice con la paleta correcta en toda la app. El
-interruptor en si vive en `DrawerContent` (siempre a un swipe de distancia,
-sin pantalla de "Ajustes" separada).
+`StyleSheet.create` estatico con colores fijos), para que cambiar el tema
+en Ajustes re-renderice con la paleta correcta en toda la app.
 
 ---
 
@@ -379,13 +402,11 @@ expo-sqlite, no toca Controllers ni Views.
   mecanismo que Expo inlinea automaticamente en el bundle; sin ese
   prefijo, la variable no llega al cliente.
 - Todo lo usado en esta version (`expo-camera`, `expo-image-picker`,
-  `expo-sqlite`, `expo-crypto`, `react-native-webview`,
-  `@react-native-community/datetimepicker`, `expo-router/drawer` +
-  `react-native-reanimated`/`react-native-worklets`,
-  `@supabase/supabase-js` + `@react-native-async-storage/async-storage`)
-  esta **incluido en el bundle nativo de Expo Go** — se puede probar en un
-  iPhone real con la app Expo Go de la App Store, sin generar un
-  development build.
+  `expo-sqlite`, `expo-crypto`, `react-native-webview`, `@expo/vector-icons`,
+  `react-native-reanimated`/`react-native-worklets`, `@supabase/supabase-js`
+  + `@react-native-async-storage/async-storage`) esta **incluido en el
+  bundle nativo de Expo Go** — se puede probar en un iPhone real con la
+  app Expo Go de la App Store, sin generar un development build.
 
 ---
 
@@ -403,8 +424,19 @@ expo-sqlite, no toca Controllers ni Views.
 - Texturizado real del diseno sobre la malla 3D en `model3d/index.tsx`
   (`BodyModelViewer` ya renderiza un `.glb` de ejemplo; falta el asset real
   del maniquin y el pipeline de aplicar el PNG del diseno como decal).
-- El efecto de escala tipo Twitter/X en el sidebar (ver seccion 7) — hoy
-  solo esta el `drawerType: 'back'` nativo.
+- Backend de mensajeria: `(tabs)/mensajes.tsx` y `messages/[id].tsx` son
+  solo la UI (estado local, sin persistencia ni tiempo real) — la guia de
+  diseno solo especifica las rutas, no un backend de chat. Cuando se
+  defina, lo natural es una tabla de Supabase + `supabase.channel(...)`
+  para tiempo real.
+- Animaciones de la guia no implementadas literalmente (encendido de neon
+  al abrir la app, trazo del subrayado, pulso de brillo continuo en el CTA
+  principal, brillo que barre mientras "Genera con IA" esta cargando): son
+  micro-interacciones decorativas sobre una app ya funcional, priorizadas
+  por debajo de tener cada pantalla y flujo completos. `theme/motion.ts` ya
+  tiene las duraciones/curvas listas para sumarlas.
+- "Privacidad y datos", "Centro de ayuda" y "Términos y privacidad" en
+  Ajustes son filas sin pantalla destino todavia (placeholders visuales).
 - Endurecer el storage de sesion de Supabase: hoy usa `AsyncStorage` plano;
   Supabase documenta una variante con `expo-secure-store` + cifrado AES
   para produccion.
