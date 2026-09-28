@@ -36,6 +36,7 @@ export const darkColors = {
   textMuted: '#B9AEC6',
   placeholder: '#8B7E98',
   primary: '#FF2BD6',
+  primaryPressed: 'rgba(255,43,214,0.18)',
   onPrimary: '#1A0016',
   primaryTint: 'rgba(255,43,214,0.18)',
   secondary: '#22D3FF',
@@ -45,6 +46,7 @@ export const darkColors = {
   danger: '#FF6B8A',
 } as const;
 
+/** Valores tal cual la tabla "Tokens de color" de la guia (pagina 14). */
 export const lightColors = {
   background: '#FBF7F4',
   surface: '#FFFFFF',
@@ -54,14 +56,15 @@ export const lightColors = {
   text: '#1C1424',
   textMuted: '#6B5E74',
   placeholder: '#8A7D93',
-  primary: '#C0139E',
+  primary: '#C8102E',
+  primaryPressed: '#A30D25',
   onPrimary: '#FFFFFF',
-  primaryTint: '#FFE3F7',
+  primaryTint: '#FDE8EB',
   secondary: '#0A6C96',
   secondaryTint: '#DDF6FF',
   accent: '#8A5A00',
   success: '#0B7A53',
-  danger: '#C8254A',
+  danger: '#8E1B2C',
 } as const;
 
 export type ThemeColors = { [K in keyof typeof darkColors]: string };
@@ -79,20 +82,28 @@ export const glow: Record<GlowTone, { core: string; soft: string; color: string;
 };
 
 /**
- * En modo claro, fuchsia y amber (pensados para brillar sobre un fondo
- * oscuro) casi no se leen sobre el fondo casi blanco de `lightColors` — se
- * reemplazan por rojo y azul oscuro. `blue` no cambia porque ya se lee
- * bien en ambos temas. Usado por los "logos" (NeonText, SectionIcon,
- * NeonSwoosh), no por los botones/chips (que ya resuelven su color por
- * `useTheme().colors`).
+ * "Neón en claro" (guia, pagina "Tokens de color"): en modo claro el
+ * nucleo del logo/icono es el tono ya oscurecido para contraste — el
+ * mismo valor que `lightColors.primary/secondary/accent` — y el halo usa
+ * el tono crudo original (mas brillante) en baja opacidad. `fuchsia` usa
+ * el rojo explicito de la guia (rgb 255,45,85); `blue`/`amber` reusan su
+ * propio tono crudo de `palette` como halo, por simetria con el mismo
+ * criterio.
  */
-const LOGO_TONE_LIGHT_OVERRIDE: Partial<Record<GlowTone, string>> = {
-  fuchsia: '#D0142E',
-  amber: '#123A63',
+const LIGHT_HALO_RGB: Record<GlowTone, string> = {
+  fuchsia: '255,45,85',
+  blue: '34,211,255',
+  amber: '255,210,63',
 };
 
-/** Color solido y plano de un "logo" para el tema dado — sin difuminado. */
-export function logoToneColor(scheme: 'light' | 'dark', tone: GlowTone): string {
-  if (scheme === 'light') return LOGO_TONE_LIGHT_OVERRIDE[tone] ?? glow[tone].color;
-  return glow[tone].color;
+/** Nucleo solido de un "logo" en modo claro (mismo valor que `lightColors`). */
+export function neonLightCore(tone: GlowTone): string {
+  if (tone === 'fuchsia') return lightColors.primary;
+  if (tone === 'blue') return lightColors.secondary;
+  return lightColors.accent;
+}
+
+/** Color de halo (mas brillante que el nucleo) en modo claro, como rgb()/rgba(). */
+export function neonLightHaloColor(tone: GlowTone, alpha = 1): string {
+  return alpha >= 1 ? `rgb(${LIGHT_HALO_RGB[tone]})` : `rgba(${LIGHT_HALO_RGB[tone]},${alpha})`;
 }

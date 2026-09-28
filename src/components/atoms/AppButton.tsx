@@ -21,6 +21,11 @@ function neonHalo(color: string) {
   return `0 0 10px ${color}, 0 0 24px ${color}8C, inset 0 0 10px ${color}99`;
 }
 
+/** Halo del boton primario en claro ("tubo rojo") — guia, pag. "Botones y estados". */
+const LIGHT_PRIMARY_HALO = '0 0 18px rgba(255,45,85,.45), 0 8px 18px rgba(120,0,24,.28)';
+/** Halo del boton secundario en claro ("tubo azul"). */
+const LIGHT_SECONDARY_HALO = '0 0 10px rgba(34,211,255,.45), 0 0 8px rgba(34,211,255,.3), 0 6px 12px rgba(10,60,80,.18)';
+
 /**
  * Boton de tubo neon (oscuro) / relleno solido (claro). Ver guia de
  * diseno, "Botones y estados" — src/components/atoms/AppButton.tsx.
@@ -75,12 +80,21 @@ export function AppButton({
             backgroundColor: selected ? `${g.color}2E` : 'transparent',
           }
         : isFilled
-          ? {
-              backgroundColor: variant === 'primary' ? colors.primary : variant === 'secondary' ? 'transparent' : colors.accent,
-              borderWidth: variant === 'secondary' ? 1.5 : 0,
-              borderColor: colors.secondary,
-              boxShadow: variant === 'primary' ? `0 6px 16px ${colors.primary}47` : undefined,
-            }
+          ? variant === 'primary'
+            ? {
+                backgroundColor: colors.primary,
+                borderWidth: 3,
+                borderColor: `${colors.primary}1F`,
+                boxShadow: LIGHT_PRIMARY_HALO,
+              }
+            : variant === 'secondary'
+              ? {
+                  backgroundColor: 'rgba(255,255,255,0.8)',
+                  borderWidth: 2,
+                  borderColor: '#0A8FC4',
+                  boxShadow: LIGHT_SECONDARY_HALO,
+                }
+              : { backgroundColor: colors.accent, borderWidth: 0 }
           : { borderWidth: 1.5, borderColor: colors.border },
     inactive && styles.disabled,
   ];
