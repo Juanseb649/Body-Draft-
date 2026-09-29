@@ -25,7 +25,7 @@ export default function DesignScreen() {
   const ownerId = useAuthStore((s) => s.user?.id) ?? 'current-user';
   const [prompt, setPrompt] = useState('');
   const [style, setStyle] = useState<string | null>('Japonés');
-  const { designs, isLoading, loadDesigns, generateWithAI, uploadDesign } = useDesignStore();
+  const { designs, isLoading, error, loadDesigns, generateWithAI, uploadDesign } = useDesignStore();
   const selectDesign = useEditorStore((s) => s.selectDesign);
 
   const styles = createStyles(colors);
@@ -94,6 +94,7 @@ export default function DesignScreen() {
             ))}
           </View>
 
+          {error && <Text style={[typo.caption, { color: colors.danger }]}>{error}</Text>}
           <AppButton label="✦  Generar con IA" isLoading={isLoading} onPress={handleGenerate} />
           <View style={{ height: 12 }} />
           <AppButton label="Subir imagen propia" variant="secondary" onPress={pickFromGallery} />

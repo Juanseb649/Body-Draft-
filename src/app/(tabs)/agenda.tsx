@@ -19,7 +19,7 @@ export default function AgendaScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const userId = useAuthStore((s) => s.user?.id);
-  const { appointments, loadAppointments, cancel } = useAppointmentStore();
+  const { appointments, loadAppointments, cancel, error } = useAppointmentStore();
 
   const styles = createStyles(colors);
 
@@ -36,6 +36,7 @@ export default function AgendaScreen() {
       ListHeaderComponent={
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <SectionHeader section="agenda" />
+          {error && <Text style={[typo.caption, { color: colors.danger, marginTop: 8 }]}>{error}</Text>}
         </View>
       }
       ListEmptyComponent={

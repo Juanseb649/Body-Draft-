@@ -41,7 +41,7 @@ export default function AppointmentScreen() {
   const { colors } = useTheme();
   const proposal = useEditorStore((s) => s);
   const userId = useAuthStore((s) => s.user?.id) ?? proposal.userId;
-  const book = useAppointmentStore((s) => s.book);
+  const { book, isLoading, error } = useAppointmentStore();
 
   const today = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -68,8 +68,8 @@ export default function AppointmentScreen() {
     if (!day || !time) return;
     const [hours, minutes] = time.split(':').map(Number);
     const dateTime = new Date(cursor.year, cursor.month, day, hours, minutes);
-    await book({ userId, artistId, dateTime: dateTime.toISOString(), proposalId: proposal.id });
-    router.replace('/agenda');
+    const ok = await book({ userId, artistId, dateTime: dateTime.toISOString(), proposalId: proposal.id });
+    if (ok) router.replace('/agenda');
   };
 
   return (
@@ -141,7 +141,8 @@ export default function AppointmentScreen() {
       </View>
 
       <View style={{ flex: 1 }} />
-      <AppButton label="Confirmar cita" onPress={handleConfirm} disabled={!day || !time} />
+      {error && <Text style={[typo.caption, { color: colors.danger, marginBottom: 8 }]}>{error}</Text>}
+      <AppButton label="Confirmar cita" onPress={handleConfirm} disabled={!day || !time} isLoading={isLoading} />
       <View style={{ height: insets.bottom + 16 }} />
     </View>
   );

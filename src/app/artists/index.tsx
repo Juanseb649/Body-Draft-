@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chip } from '../../components/atoms/Chip';
@@ -18,7 +18,7 @@ export default function ArtistsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { artists, isLoading, loadArtists } = useArtistStore();
+  const { artists, isLoading, loadArtists, error } = useArtistStore();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState(FILTERS[0]);
 
@@ -47,6 +47,7 @@ export default function ArtistsScreen() {
       ListHeaderComponent={
         <View style={styles.header}>
           <SectionHeader section="artistas" />
+          {error && <Text style={[typo.caption, { color: colors.danger }]}>{error}</Text>}
           <TextInput
             style={styles.search}
             placeholder="Buscar por nombre o estilo"

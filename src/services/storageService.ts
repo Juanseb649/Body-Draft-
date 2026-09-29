@@ -1,14 +1,13 @@
-import type { Appointment } from '../models/appointment';
 import type { TattooDesign } from '../models/tattooDesign';
 import type { TattooProposal } from '../models/tattooProposal';
 
 /**
- * Persistencia local (expo-sqlite). Los repositorios la combinan con
- * el acceso remoto (Firebase/API) segun corresponda a cada entidad.
+ * Persistencia local, PER-DISPOSITIVO: solo para datos que le pertenecen
+ * a un unico usuario y no necesitan verse desde otra cuenta (disenos,
+ * propuestas). Las citas no viven aqui — ver data/appointmentRepository.ts.
  *
- * La implementacion real con expo-sqlite vive fuera de este esqueleto:
- * requiere definir el esquema de tablas y envolver `SQLiteProvider` /
- * `useSQLiteContext` (ver ARCHITECTURE.md, seccion "Persistencia").
+ * Implementacion real: `SqliteStorageService` (services/sqliteStorageService.ts),
+ * sobre `expo-sqlite/kv-store`.
  */
 export interface StorageService {
   saveDesign(design: TattooDesign): Promise<void>;
@@ -16,7 +15,4 @@ export interface StorageService {
 
   saveProposal(proposal: TattooProposal): Promise<void>;
   getProposals(userId: string): Promise<TattooProposal[]>;
-
-  saveAppointment(appointment: Appointment): Promise<void>;
-  getAppointments(userId: string): Promise<Appointment[]>;
 }

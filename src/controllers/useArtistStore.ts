@@ -6,6 +6,7 @@ import type { Artist } from '../models/artist';
 interface ArtistState {
   artists: Artist[];
   isLoading: boolean;
+  error?: string;
   loadArtists: (specialty?: string) => Promise<void>;
 }
 
@@ -13,10 +14,15 @@ interface ArtistState {
 export const useArtistStore = create<ArtistState>((set) => ({
   artists: [],
   isLoading: false,
+  error: undefined,
 
   loadArtists: async (specialty) => {
-    set({ isLoading: true });
-    const artists = await artistRepository.getArtists(specialty);
-    set({ artists, isLoading: false });
+    set({ isLoading: true, error: undefined });
+    try {
+      const artists = await artistRepository.getArtists(specialty);
+      set({ artists, isLoading: false });
+    } catch (e) {
+      set({ isLoading: false, error: e instanceof Error ? e.message : String(e) });
+    }
   },
 }));
