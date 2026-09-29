@@ -391,17 +391,24 @@ catalogo de un tatuador para mostrarlo en su perfil/portafolio.
 
 ## 10. Persistencia
 
-- **Local (`StorageService`, implementacion pendiente con expo-sqlite):**
-  disenos, propuestas y citas del usuario, para que "Mis disenos" y "Mis
-  citas" funcionen sin conexion.
-- **Remota (`ArtistRepository`, pendiente de backend real):** catalogo de
-  tatuadores y disponibilidad, que cambia independientemente del uso local
-  del usuario.
+- **Local (`StorageService` → `SqliteStorageService`, sobre
+  `expo-sqlite/kv-store`):** disenos y propuestas del usuario — datos de
+  una sola cuenta, sin necesidad de verse desde otra, asi que sobreviven
+  a cerrar la app pero no salen del dispositivo.
+- **Remota (Supabase, `ArtistRepository` + `AppointmentRepository`):**
+  catalogo de tatuadores (`profiles` con `role = 'artist'`) y citas —
+  datos que por definicion tienen que verse desde DOS cuentas distintas
+  (cliente y tatuador), asi que no pueden vivir solo en el storage local
+  de una de ellas. Esquema y RLS versionados en `supabase/migrations/`
+  (ver `supabase/README.md` para aplicarlos/mantenerlos al dia).
 
 `core/services.ts` centraliza que implementacion concreta usa cada
 interfaz (`AIService`, `StorageService`, `BodyModelService`), de modo que
-sustituir Gemini por otro proveedor, o el storage en memoria por
-expo-sqlite, no toca Controllers ni Views.
+sustituir Gemini por otro proveedor, o `SqliteStorageService` por otra
+cosa, no toca Controllers ni Views. `ArtistRepository` y
+`AppointmentRepository` no implementan una interfaz compartida con
+`StorageService` a proposito: hablan con Supabase directamente porque su
+dato es compartido entre cuentas, no local a una.
 
 ---
 
@@ -424,13 +431,18 @@ expo-sqlite, no toca Controllers ni Views.
 
 ## 12. Pendiente / fuera del MVP
 
-- Implementacion real de `StorageService` con expo-sqlite (`SQLiteProvider`
-  + `useSQLiteContext`, esquema de tablas). Hoy `core/services.ts` usa
-  `InMemoryStorageService` (`services/inMemoryStorageService.ts`), con
-  datos de ejemplo, solo para poder navegar la app y revisar el diseno sin
-  backend. Lo mismo con `ArtistRepository`, que devuelve una lista de
-  tatuadores de prueba en lugar de llamar a un backend real. (Ninguna de
-  las dos depende de Supabase; solo la autenticacion lo usa por ahora.)
+- Un tatuador nuevo (Ajustes > "Soy tatuador") no tiene todavia pantalla
+  para editar `specialty`/`bio`/portafolio en `profiles` — aparece en la
+  lista de Artistas con esos campos vacios hasta que exista "Editar
+  perfil".
+- Notificar al tatuador de una cita nueva es pasivo: la ve cuando abre su
+  propia Agenda (RLS de `appointments` se lo permite), pero no hay push
+  notification todavia. Requiere Expo push tokens + Supabase Realtime o
+  una Edge Function.
+- Migrar `appointments`/`profiles` de RLS "cualquiera de las dos partes
+  puede actualizar cualquier campo" a policies mas finas (ej. que el
+  cliente no pueda poner `status = 'confirmed'`, eso deberia ser solo del
+  tatuador) — ver el TODO dentro de la migracion.
 - Subida de imagenes/snapshots a storage remoto (hoy se guardan URIs
   locales del dispositivo).
 - Texturizado real del diseno sobre la malla 3D en `model3d/index.tsx`

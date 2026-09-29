@@ -1,46 +1,54 @@
 import type { Artist } from '../models/artist';
+import { supabase } from '../services/supabaseClient';
+
+/** Fila de `public.profiles` (ver supabase/migrations/, esquema profiles/appointments). */
+interface ProfileRow {
+  id: string;
+  name: string | null;
+  specialty: string | null;
+  bio: string | null;
+  location: string | null;
+  portfolio_image_urls: string[] | null;
+  rating: number | null;
+}
+
+function toArtist(row: ProfileRow): Artist {
+  return {
+    id: row.id,
+    name: row.name ?? 'Tatuador',
+    specialty: row.specialty ?? '',
+    bio: row.bio ?? undefined,
+    portfolioImageUrls: row.portfolio_image_urls ?? [],
+    location: row.location ?? undefined,
+    availableSlots: [],
+    rating: row.rating ?? undefined,
+  };
+}
 
 /**
- * Acceso a la lista de tatuadores. En el MVP se sirve desde el backend
- * (Firebase/API REST); no requiere persistencia local propia porque
- * no cambia con el uso del usuario.
- *
- * TODO: sustituir `SEED_ARTISTS` por la llamada real (Firestore o
- * endpoint REST) cuando exista el backend.
+ * Acceso a la lista de tatuadores: cuentas reales de Supabase con
+ * `profiles.role = 'artist'` (se vuelven tatuador desde Ajustes > "Soy
+ * tatuador", ver useAuthStore.updateRole). No requiere persistencia
+ * local propia porque no cambia con el uso del usuario.
  */
-const SEED_ARTISTS: Artist[] = [
-  {
-    id: 'artist-1',
-    name: 'Camila Rios',
-    specialty: 'Blackwork',
-    bio: 'Especialista en mandalas y geometria sagrada.',
-    portfolioImageUrls: [
-      'https://picsum.photos/seed/bodydraft-artist1-a/400',
-      'https://picsum.photos/seed/bodydraft-artist1-b/400',
-    ],
-    location: 'CDMX',
-    availableSlots: [],
-    rating: 4.8,
-  },
-  {
-    id: 'artist-2',
-    name: 'Diego Fernandez',
-    specialty: 'Realismo',
-    bio: 'Retratos y realismo en escala de grises.',
-    portfolioImageUrls: ['https://picsum.photos/seed/bodydraft-artist2-a/400'],
-    location: 'Guadalajara',
-    availableSlots: [],
-    rating: 4.6,
-  },
-];
-
 export class ArtistRepository {
   async getArtists(specialty?: string): Promise<Artist[]> {
-    if (!specialty) return SEED_ARTISTS;
-    return SEED_ARTISTS.filter((a) => a.specialty === specialty);
+    let query = supabase.from('profiles').select('*').eq('role', 'artist');
+    if (specialty) query = query.eq('specialty', specialty);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data as ProfileRow[]).map(toArtist);
   }
 
   async getArtistById(id: string): Promise<Artist | undefined> {
-    return SEED_ARTISTS.find((a) => a.id === id);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .eq('role', 'artist')
+      .maybeSingle();
+    if (error) throw error;
+    return data ? toArtist(data as ProfileRow) : undefined;
   }
 }

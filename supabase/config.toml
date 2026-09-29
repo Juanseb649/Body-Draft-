@@ -1,0 +1,6 @@
+# Config minima para que este directorio sea un proyecto de Supabase CLI
+# valido (`supabase link`, `supabase db pull`, `supabase db push`, etc.).
+# No incluye project_id: cada quien lo linkea al SUYO con
+# `supabase link --project-ref <ref>` (ver supabase/README.md) — nunca
+# hardcodear un project_id de produccion en un archivo commiteado.
+project_id = "body-draft"

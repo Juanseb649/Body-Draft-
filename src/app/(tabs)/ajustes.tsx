@@ -14,7 +14,7 @@ const LOCALE_LABEL: Record<string, string> = { es: 'Español', en: 'English' };
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
-  const { user, signOut } = useAuthStore();
+  const { user, signOut, updateRole } = useAuthStore();
   const settings = useSettingsStore();
 
   const styles = createStyles(colors);
@@ -123,7 +123,18 @@ export default function SettingsScreen() {
       </Group>
 
       <Group title="Cuenta">
-        <Pressable onPress={() => settings.setRole(settings.account.role === 'artist' ? 'client' : 'artist')}>
+        <Pressable
+          onPress={async () => {
+            const previous = settings.account.role;
+            const next = previous === 'artist' ? 'client' : 'artist';
+            settings.setRole(next);
+            // `profiles.role` en Supabase es la fuente de verdad para que
+            // otros usuarios puedan encontrarte como tatuador — si falla,
+            // revertimos el toggle local para no mentir en la UI.
+            const ok = await updateRole(next);
+            if (!ok) settings.setRole(previous);
+          }}
+        >
           <Row label="Soy tatuador" hint="Publica plantillas y recibe citas" right={<Text style={{ color: colors.textMuted }}>›</Text>} />
         </Pressable>
         <Pressable onPress={() => settings.setLocale(settings.account.locale === 'es' ? 'en' : 'es')}>
