@@ -4,8 +4,9 @@ import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
-import { artistRepository } from '../../core/services';
+import { artistRepository, designRepository } from '../../core/services';
 import type { Artist } from '../../models/artist';
+import type { TattooDesign } from '../../models/tattooDesign';
 import { neonLightCore, neonLightHaloColor, type as typo, useTheme } from '../../theme';
 
 /** Perfil del artista: bio + portafolio, con acceso a agendar cita. */
@@ -15,11 +16,19 @@ export default function ArtistProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const [artist, setArtist] = useState<Artist | undefined>(undefined);
+  const [works, setWorks] = useState<TattooDesign[]>([]);
 
   const styles = createStyles(colors);
 
   useEffect(() => {
     artistRepository.getArtistById(id).then(setArtist);
+    // El portafolio sale de la tabla `designs` (lo mismo que alimenta el
+    // feed de Inicio), no del array `portfolio_image_urls` del perfil:
+    // asi hay una sola fuente de verdad del trabajo de un tatuador.
+    designRepository
+      .getArtistTemplates(id)
+      .then(setWorks)
+      .catch(() => setWorks([]));
   }, [id]);
 
   if (!artist) return <View style={[styles.center, { backgroundColor: colors.background }]} />;
@@ -28,8 +37,8 @@ export default function ArtistProfileScreen() {
     <FlatList
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 96 }}
-      data={artist.portfolioImageUrls}
-      keyExtractor={(uri) => uri}
+      data={works}
+      keyExtractor={(work) => work.id}
       numColumns={2}
       columnWrapperStyle={styles.row}
       ListHeaderComponent={
@@ -58,7 +67,12 @@ export default function ArtistProfileScreen() {
           <Text style={[typo.label, { color: colors.textMuted, marginTop: 24, marginBottom: 8 }]}>Portafolio</Text>
         </View>
       }
-      renderItem={({ item }) => <Image source={{ uri: item }} style={styles.portfolioImage} />}
+      ListEmptyComponent={
+        <Text style={[typo.body, { color: colors.textMuted, paddingHorizontal: 20 }]}>
+          Este tatuador todavía no publicó trabajos.
+        </Text>
+      }
+      renderItem={({ item }) => <Image source={{ uri: item.imageUrl }} style={styles.portfolioImage} />}
       ListFooterComponent={
         <View style={styles.footer}>
           <AppButton label="Agendar" onPress={() => router.push(`/appointment/${artist.id}`)} />

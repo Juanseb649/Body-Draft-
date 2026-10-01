@@ -1,7 +1,9 @@
+import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppButton } from '../../components/atoms/AppButton';
 import { SectionHeader } from '../../components/molecules/SectionHeader';
 import { useAppointmentStore } from '../../controllers/useAppointmentStore';
 import { useAuthStore } from '../../controllers/useAuthStore';
@@ -16,6 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 /** Pestana "Agenda": tus citas, proximas y anteriores. */
 export default function AgendaScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const userId = useAuthStore((s) => s.user?.id);
@@ -34,14 +37,15 @@ export default function AgendaScreen() {
       data={appointments}
       keyExtractor={(a) => a.id}
       ListHeaderComponent={
-        <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 12, gap: 12 }}>
           <SectionHeader section="agenda" />
-          {error && <Text style={[typo.caption, { color: colors.danger, marginTop: 8 }]}>{error}</Text>}
+          {error && <Text style={[typo.caption, { color: colors.danger }]}>{error}</Text>}
+          <AppButton label="Agendar cita" size="M" onPress={() => router.push('/appointment/new')} />
         </View>
       }
       ListEmptyComponent={
         <Text style={[typo.body, { color: colors.textMuted, marginHorizontal: 20 }]}>
-          Todavía no tienes citas agendadas.
+          Todavía no tienes citas agendadas. Toca &quot;Agendar cita&quot; para elegir un tatuador.
         </Text>
       }
       renderItem={({ item }) => (
