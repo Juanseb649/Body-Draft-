@@ -16,6 +16,32 @@ interface GeminiGenerateContentResponse {
 }
 
 /**
+ * Convierte un error HTTP de la API en algo que tenga sentido mostrarle
+ * al usuario en pantalla, en vez del JSON crudo de Google. El detalle
+ * original se conserva al final para poder depurar.
+ */
+async function describeApiError(response: Response): Promise<string> {
+  const body = await response.text();
+  let detail = body;
+  try {
+    detail = (JSON.parse(body) as { error?: { message?: string } }).error?.message ?? body;
+  } catch {
+    // El cuerpo no era JSON; se usa tal cual.
+  }
+
+  if (response.status === 429) {
+    return `Se agotó la cuota de Gemini por ahora. Espera unos minutos o revisa el plan/facturación de tu API key. (${detail})`;
+  }
+  if (response.status === 401 || response.status === 403) {
+    return `Gemini rechazó la API key (sin permiso para el modelo de imagen). (${detail})`;
+  }
+  if (response.status === 404) {
+    return `Gemini no encontró el modelo "${IMAGE_MODEL}" para esta key. (${detail})`;
+  }
+  return `Gemini (${response.status}): ${detail}`;
+}
+
+/**
  * Implementacion de AIService sobre la API REST de Gemini.
  *
  * Llama al endpoint REST directamente con `fetch` en vez de usar un SDK
@@ -47,7 +73,7 @@ export class GeminiAIService implements AIService {
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini (${response.status}): ${await response.text()}`);
+      throw new Error(await describeApiError(response));
     }
 
     const data = (await response.json()) as GeminiGenerateContentResponse;
