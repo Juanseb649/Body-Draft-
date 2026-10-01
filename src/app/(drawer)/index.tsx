@@ -1,31 +1,61 @@
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
 import { MenuButton } from '../../components/atoms/MenuButton';
 import { NeonText } from '../../components/atoms/NeonText';
+import { RevealOnScroll } from '../../components/atoms/RevealOnScroll';
+import { ArtistWorkCard } from '../../components/molecules/ArtistWorkCard';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import { useDesignStore } from '../../controllers/useDesignStore';
 import { type as typo, useTheme } from '../../theme';
+
+/** Saludo segun la hora del dia. */
+function greetingFor(date: Date): string {
+  const hour = date.getHours();
+  if (hour < 6) return 'Buenas noches';
+  if (hour < 12) return 'Buenos días';
+  if (hour < 20) return 'Buenas tardes';
+  return 'Buenas noches';
+}
 
 /**
  * "Inicio". Ya NO lleva accesos a las secciones: para eso esta el menu
  * lateral (ver components/organisms/SidebarContent.tsx). Aqui va el
- * saludo, el CTA de crear diseno, la proxima cita y la seccion social
- * con lo ultimo de los artistas.
+ * saludo, el CTA de crear diseno, la proxima cita y el feed con lo
+ * ultimo que publicaron los tatuadores.
  */
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const name = (useAuthStore((s) => s.user?.user_metadata?.name as string | undefined)) ?? 'ahi';
-  const initial = name.charAt(0).toUpperCase();
+  const name = (useAuthStore((s) => s.user?.user_metadata?.name as string | undefined)) ?? '';
+  const initial = (name || '?').charAt(0).toUpperCase();
+  const { feed, isFeedLoading, loadFeed } = useDesignStore();
 
   const styles = createStyles(colors);
+  const scrollY = useSharedValue(0);
+  const feedY = useSharedValue(0);
+
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
 
   return (
-    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+    <Animated.ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+    >
       <View style={styles.header}>
         <MenuButton />
         <BodyDraftLogo variant="inline" size={28} />
@@ -34,10 +64,10 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.greeting}>
-        <Text style={[typo.title, { color: colors.textStrong }]}>Hola, {name}</Text>
-        <Text style={[typo.body, { color: colors.textMuted }]}>¿Qué vamos a tatuar hoy?</Text>
-      </View>
+      <Text style={[typo.title, { color: colors.textStrong }]}>
+        {greetingFor(new Date())}
+        {name ? `, ${name}` : ''}
+      </Text>
 
       <View style={styles.ctaCard}>
         <NeonText tone="fuchsia" style={styles.sparkle} containerStyle={styles.sparkleContainer}>
@@ -71,7 +101,33 @@ export default function HomeScreen() {
           <Text style={[typo.caption, { color: colors.success, fontFamily: typo.bodyStrong.fontFamily }]}>Confirmada</Text>
         </View>
       </View>
-    </ScrollView>
+
+      <View style={styles.sectionHeader}>
+        <Text style={[typo.sectionTitle, { color: colors.textStrong }]}>Lo último de los artistas</Text>
+        <Pressable onPress={() => router.push('/artists')}>
+          <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Ver artistas</Text>
+        </Pressable>
+      </View>
+
+      <View
+        style={styles.feedGrid}
+        onLayout={(e) => {
+          feedY.value = e.nativeEvent.layout.y;
+        }}
+      >
+        {feed.map((item) => (
+          <RevealOnScroll key={item.design.id} scrollY={scrollY} sectionY={feedY} style={styles.feedItem}>
+            <ArtistWorkCard item={item} onPress={() => router.push(`/artists/${item.design.artistId}`)} />
+          </RevealOnScroll>
+        ))}
+      </View>
+
+      {feed.length === 0 && !isFeedLoading && (
+        <Text style={[typo.body, { color: colors.textMuted }]}>
+          Todavía no hay trabajos publicados por tatuadores.
+        </Text>
+      )}
+    </Animated.ScrollView>
   );
 }
 
@@ -89,7 +145,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       justifyContent: 'center',
     },
     avatarLabel: { ...typo.bodyStrong, color: colors.primary },
-    greeting: { gap: 2 },
     ctaCard: {
       backgroundColor: colors.surface,
       borderRadius: 20,
@@ -125,5 +180,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: 12,
       backgroundColor: colors.success + '26',
     },
+    feedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    feedItem: { width: '48%' },
   });
 }

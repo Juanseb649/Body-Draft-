@@ -23,6 +23,8 @@ import type { StorageService } from '../services/storageService';
  * supabase/migrations/ en el proyecto de Supabase (ver supabase/README.md).
  */
 
+export type { ArtistFeedItem } from '../data/designRepository';
+
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
 
 export const storageService: StorageService = new SqliteStorageService();
