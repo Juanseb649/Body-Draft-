@@ -2,11 +2,9 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { glow, neonLightCore, neonLightHaloColor, useTheme, type GlowTone } from '../../theme';
+import { flatToneColor, neonLightCore, neonLightHaloColor, useTheme, type GlowTone } from '../../theme';
 import { useNeonFlicker } from './useNeonFlicker';
 
-/** Radios de la guia ("Receta del neón", solo oscuro): 3 copias con textShadowRadius 22/10/4. */
-const DARK_HALO_RADII = [22, 10, 4];
 /** Radios/opacidad de la guia ("Neón en claro: 3 capas"): 6/16/30 px @ .55/.35/.2. */
 const LIGHT_HALO = [
   { radius: 30, alpha: 0.2 },
@@ -56,30 +54,11 @@ export function NeonText({
     );
   }
 
-  const g = glow[tone];
+  // Oscuro ("sin neon", guia pagina "Tokens de color"): color de marca
+  // plano, sin capas de halo — solo la animacion de entrada (sube+aparece).
   return (
     <View style={containerStyle}>
-      {DARK_HALO_RADII.map((radius, i) => (
-        <Animated.Text
-          key={radius}
-          aria-hidden
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          style={[
-            style,
-            styles.halo,
-            {
-              color: i === 0 ? g.deep : g.color,
-              textShadowColor: i === 0 ? g.deep : g.color,
-              textShadowRadius: radius,
-            },
-            flicker,
-          ]}
-        >
-          {children}
-        </Animated.Text>
-      ))}
-      <Animated.Text accessibilityRole={accessibilityRole} style={[style, styles.core, { color: g.core }, flicker]}>
+      <Animated.Text accessibilityRole={accessibilityRole} style={[style, { color: flatToneColor('dark', tone) }, flicker]}>
         {children}
       </Animated.Text>
     </View>
@@ -94,10 +73,5 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     textShadowOffset: { width: 0, height: 0 },
-  },
-  core: {
-    textShadowColor: '#FFFFFF',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 2,
   },
 });

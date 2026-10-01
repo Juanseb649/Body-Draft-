@@ -35,16 +35,23 @@ alter table public.profiles enable row level security;
 -- Cualquier usuario logueado puede ver: su propio perfil (sea cliente o
 -- tatuador) y el de CUALQUIER tatuador (para poder listarlos/agendar).
 -- Los perfiles de otros CLIENTES no son visibles entre si.
+-- (drop + create en vez de "create or replace": Postgres no tiene una
+-- forma nativa de redefinir una policy existente, asi que se borra y se
+-- vuelve a crear para que todo este archivo se pueda correr mas de una
+-- vez sin error "ya existe".)
+drop policy if exists "profiles: own row or any artist is readable" on public.profiles;
 create policy "profiles: own row or any artist is readable"
   on public.profiles for select
   to authenticated
   using (role = 'artist' or id = auth.uid());
 
+drop policy if exists "profiles: users insert only their own row" on public.profiles;
 create policy "profiles: users insert only their own row"
   on public.profiles for insert
   to authenticated
   with check (id = auth.uid());
 
+drop policy if exists "profiles: users update only their own row" on public.profiles;
 create policy "profiles: users update only their own row"
   on public.profiles for update
   to authenticated
@@ -85,12 +92,14 @@ create table if not exists public.appointments (
 alter table public.appointments enable row level security;
 
 -- Solo las dos partes de la cita pueden verla.
+drop policy if exists "appointments: visible to the client or the artist involved" on public.appointments;
 create policy "appointments: visible to the client or the artist involved"
   on public.appointments for select
   to authenticated
   using (client_id = auth.uid() or artist_id = auth.uid());
 
 -- Un cliente solo puede crear citas a su propio nombre.
+drop policy if exists "appointments: clients create only their own bookings" on public.appointments;
 create policy "appointments: clients create only their own bookings"
   on public.appointments for insert
   to authenticated
@@ -101,6 +110,7 @@ create policy "appointments: clients create only their own bookings"
 -- transicion de status puede hacer cada rol (ej. el cliente tambien
 -- podria poner status='confirmed'); para eso hace falta una policy mas
 -- fina que compare el valor viejo y el nuevo por columna.
+drop policy if exists "appointments: either party can update status" on public.appointments;
 create policy "appointments: either party can update status"
   on public.appointments for update
   to authenticated

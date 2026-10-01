@@ -3,29 +3,17 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
+import { MenuButton } from '../../components/atoms/MenuButton';
 import { NeonText } from '../../components/atoms/NeonText';
-import { SectionIcon } from '../../components/atoms/SectionIcon';
-import { SECTIONS, type SectionKey } from '../../components/atoms/sectionIcons';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { type as typo, useTheme } from '../../theme';
 
-type DashboardHref = '/disena' | '/editor' | '/agenda' | '/model3d' | '/artists' | '/ajustes';
-
-/** Todas las secciones de la app: el dashboard es la unica forma de llegar a ellas. */
-const DASHBOARD_SECTIONS: { section: SectionKey; href: DashboardHref }[] = [
-  { section: 'disena', href: '/disena' },
-  { section: 'crea', href: '/editor' },
-  { section: 'agenda', href: '/agenda' },
-  { section: 'explora', href: '/model3d' },
-  { section: 'artistas', href: '/artists' },
-  { section: 'ajustes', href: '/ajustes' },
-];
-
 /**
- * "Inicio": el dashboard. Reemplaza la barra de pestanas inferior — cada
- * seccion es una tarjeta con su logo animado y su nombre al lado (ver
- * ARCHITECTURE.md, "Navegacion").
+ * "Inicio". Ya NO lleva accesos a las secciones: para eso esta el menu
+ * lateral (ver components/organisms/SidebarContent.tsx). Aqui va el
+ * saludo, el CTA de crear diseno, la proxima cita y la seccion social
+ * con lo ultimo de los artistas.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -39,7 +27,8 @@ export default function HomeScreen() {
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <View style={styles.header}>
-        <BodyDraftLogo variant="inline" size={32} />
+        <MenuButton />
+        <BodyDraftLogo variant="inline" size={28} />
         <View style={styles.avatar}>
           <Text style={styles.avatarLabel}>{initial}</Text>
         </View>
@@ -59,16 +48,6 @@ export default function HomeScreen() {
           Describe tu idea, pruébala sobre tu piel y agenda con un artista.
         </Text>
         <AppButton label="Crear diseño" size="M" onPress={() => router.push('/disena')} />
-      </View>
-
-      <Text style={[typo.sectionTitle, { color: colors.textStrong, marginTop: 4 }]}>Secciones</Text>
-      <View style={styles.grid}>
-        {DASHBOARD_SECTIONS.map(({ section, href }) => (
-          <Pressable key={section} onPress={() => router.push(href)} style={styles.tile} accessibilityRole="button">
-            <SectionIcon section={section} size={44} />
-            <Text style={[typo.bodyStrong, { color: colors.text, marginTop: 8 }]}>{SECTIONS[section].label}</Text>
-          </Pressable>
-        ))}
       </View>
 
       <View style={styles.sectionHeader}>
@@ -120,16 +99,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     sparkleContainer: { position: 'absolute', top: 16, right: 20 },
     sparkle: { fontSize: 28 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: -8 },
-    tile: {
-      width: '31%',
-      alignItems: 'center',
-      paddingVertical: 16,
-      borderRadius: 18,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     appointmentCard: {
       flexDirection: 'row',

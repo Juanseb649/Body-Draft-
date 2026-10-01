@@ -11,7 +11,7 @@ import { useCameraController } from '../../controllers/useCameraController';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { BODY_ZONES, BODY_ZONE_LABELS, type BodyZone } from '../../models/bodyZone';
-import { palette, type as typo, useTheme } from '../../theme';
+import { type as typo, useTheme } from '../../theme';
 
 /** Pantalla "Crea": camara en vivo + diseno superpuesto + ajustes. */
 export default function TattooEditorScreen() {
@@ -92,9 +92,9 @@ export default function TattooEditorScreen() {
           maximumValue={2.5}
           value={proposal.placement.scale}
           onValueChange={proposal.scale}
-          minimumTrackTintColor={palette.fuchsia}
+          minimumTrackTintColor={colors.primary}
           maximumTrackTintColor={colors.border}
-          thumbTintColor={palette.fuchsia}
+          thumbTintColor={colors.primary}
         />
 
         <View style={styles.sliderLabel}>
@@ -106,9 +106,9 @@ export default function TattooEditorScreen() {
           maximumValue={1}
           value={proposal.placement.opacity}
           onValueChange={proposal.setOpacity}
-          minimumTrackTintColor={palette.blue}
+          minimumTrackTintColor={colors.secondary}
           maximumTrackTintColor={colors.border}
-          thumbTintColor={palette.blue}
+          thumbTintColor={colors.secondary}
         />
 
         <View style={{ height: 16 }} />

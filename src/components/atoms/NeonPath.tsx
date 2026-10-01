@@ -1,12 +1,11 @@
-import { G, Path } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 
-import { glow, neonLightCore, neonLightHaloColor, useTheme, type GlowTone } from '../../theme';
+import { flatToneColor, neonLightCore, neonLightHaloColor, useTheme, type GlowTone } from '../../theme';
 
 /**
- * Trazo de "tubo de neon": nucleo solido + halo difuminado (capas de
- * distinto ancho/opacidad). Oscuro = receta original (`glow[tone]`);
- * claro = receta "Neón en claro" de la guia (nucleo oscurecido para
- * contraste, halo con el tono crudo mas brillante).
+ * Trazo de "tubo de neon": claro = receta "Neón en claro" de la guia
+ * (nucleo oscurecido para contraste + halo difuminado con el tono crudo
+ * mas brillante). Oscuro ("sin neon"): un solo trazo plano, sin halo.
  */
 export function NeonPath({
   d,
@@ -27,22 +26,14 @@ export function NeonPath({
   if (scheme === 'light') {
     const halo = neonLightHaloColor(tone);
     return (
-      <G transform={transform}>
-        <Path {...common} stroke={halo} strokeWidth={strokeWidth + 20} strokeOpacity={0.2} />
-        <Path {...common} stroke={halo} strokeWidth={strokeWidth + 11} strokeOpacity={0.35} />
-        <Path {...common} stroke={halo} strokeWidth={strokeWidth + 5} strokeOpacity={0.55} />
-        <Path {...common} stroke={core ?? neonLightCore(tone)} strokeWidth={strokeWidth} />
-      </G>
+      <>
+        <Path {...common} stroke={halo} strokeWidth={strokeWidth + 20} strokeOpacity={0.2} transform={transform} />
+        <Path {...common} stroke={halo} strokeWidth={strokeWidth + 11} strokeOpacity={0.35} transform={transform} />
+        <Path {...common} stroke={halo} strokeWidth={strokeWidth + 5} strokeOpacity={0.55} transform={transform} />
+        <Path {...common} stroke={core ?? neonLightCore(tone)} strokeWidth={strokeWidth} transform={transform} />
+      </>
     );
   }
 
-  const g = glow[tone];
-  return (
-    <G transform={transform}>
-      <Path {...common} stroke={g.deep} strokeWidth={strokeWidth + 20} strokeOpacity={0.1} />
-      <Path {...common} stroke={g.color} strokeWidth={strokeWidth + 11} strokeOpacity={0.18} />
-      <Path {...common} stroke={g.color} strokeWidth={strokeWidth + 5} strokeOpacity={0.5} />
-      <Path {...common} stroke={core ?? g.soft} strokeWidth={strokeWidth} />
-    </G>
-  );
+  return <Path {...common} stroke={core ?? flatToneColor('dark', tone)} strokeWidth={strokeWidth} transform={transform} />;
 }

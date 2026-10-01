@@ -1,6 +1,6 @@
 import type { GlowTone } from '../../theme';
 
-export type SectionKey = 'disena' | 'crea' | 'agenda' | 'explora' | 'artistas' | 'ajustes';
+export type SectionKey = 'inicio' | 'disena' | 'crea' | 'agenda' | 'explora' | 'artistas' | 'ajustes';
 
 type Stroke = { d: string; tone: GlowTone; width?: number; transform?: string };
 
@@ -8,6 +8,17 @@ export const SECTIONS: Record<
   SectionKey,
   { label: string; word: GlowTone; swoosh: GlowTone; strokes: Stroke[] }
 > = {
+  inicio: {
+    label: 'Inicio',
+    word: 'fuchsia',
+    swoosh: 'blue',
+    strokes: [
+      { tone: 'blue', d: 'M26 102 L100 34 L174 102' },
+      { tone: 'blue', d: 'M50 92 V166 H150 V92' },
+      { tone: 'fuchsia', d: 'M84 166 V122 H116 V166' },
+      { tone: 'amber', width: 8, d: 'M148 46 V74' },
+    ],
+  },
   disena: {
     label: 'Diseña',
     word: 'fuchsia',

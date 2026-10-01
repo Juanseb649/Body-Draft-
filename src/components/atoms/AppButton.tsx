@@ -1,34 +1,35 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
-import { glow, type as typo, useTheme, type GlowTone } from '../../theme';
+import { type as typo, useTheme } from '../../theme';
 import { PRESS_SCALE, duration, spring } from '../../theme/motion';
 import { Spinner } from './Spinner';
 
 type Variant = 'primary' | 'secondary' | 'accent' | 'ghost';
 type Size = 'L' | 'M' | 'S';
 
-const TONE: Record<Exclude<Variant, 'ghost'>, GlowTone> = {
-  primary: 'fuchsia',
-  secondary: 'blue',
-  accent: 'amber',
-};
-
 const HEIGHT: Record<Size, number> = { L: 56, M: 44, S: 36 };
 const PADDING: Record<Size, number> = { L: 24, M: 18, S: 14 };
 
-function neonHalo(color: string) {
-  return `0 0 10px ${color}, 0 0 24px ${color}8C, inset 0 0 10px ${color}99`;
-}
+/** "Oscuro secundario": texto mas claro que el borde — guia, "Botones y estados". */
+const DARK_SECONDARY_TEXT = '#8FD6F5';
+/** "Oscuro desactivado": no es un token de tema, solo aplica a este estado. */
+const DARK_DISABLED_BG = '#2A2530';
+const DARK_DISABLED_TEXT = '#6E6676';
+/** Texto oscuro legible sobre el relleno dorado de "Acento" (ambos temas: oscuro=dorado claro, claro=dorado oscuro). */
+const ON_ACCENT_DARK = '#2A2000';
 
 /** Halo del boton primario en claro ("tubo rojo") — guia, pag. "Botones y estados". */
 const LIGHT_PRIMARY_HALO = '0 0 18px rgba(255,45,85,.45), 0 8px 18px rgba(120,0,24,.28)';
 /** Halo del boton secundario en claro ("tubo azul"). */
 const LIGHT_SECONDARY_HALO = '0 0 10px rgba(34,211,255,.45), 0 0 8px rgba(34,211,255,.3), 0 6px 12px rgba(10,60,80,.18)';
+/** Sombra negra del boton primario en oscuro ("sin neon"). */
+const DARK_SHADOW = '0 8px 20px rgba(0,0,0,.35)';
 
 /**
- * Boton de tubo neon (oscuro) / relleno solido (claro). Ver guia de
- * diseno, "Botones y estados" — src/components/atoms/AppButton.tsx.
+ * Boton. Oscuro = relleno/contorno plano ("sin neon", sombra solo negra);
+ * claro = tubo de neon con halo. Ver guia de diseno, "Botones y estados"
+ * — src/components/atoms/AppButton.tsx.
  */
 export function AppButton({
   label,
@@ -48,8 +49,7 @@ export function AppButton({
   selected?: boolean;
 }) {
   const { colors, scheme } = useTheme();
-  const tone = variant === 'ghost' ? 'blue' : TONE[variant];
-  const g = glow[tone];
+  const isDark = scheme === 'dark';
   const inactive = disabled || isLoading;
   const pressProgress = useSharedValue(0);
 
@@ -64,48 +64,34 @@ export function AppButton({
     pressProgress.value = withSpring(0, spring.press);
   };
 
-  const isDark = scheme === 'dark';
-  const isFilled = isDark ? selected : variant !== 'ghost';
-
   const containerStyle = [
     styles.base,
     { minHeight: HEIGHT[size], paddingHorizontal: PADDING[size], borderRadius: HEIGHT[size] / 2 },
     variant === 'ghost'
       ? styles.ghost
       : isDark
-        ? {
-            borderWidth: 2,
-            borderColor: g.core,
-            boxShadow: neonHalo(g.color),
-            backgroundColor: selected ? `${g.color}2E` : 'transparent',
-          }
-        : isFilled
-          ? variant === 'primary'
-            ? {
-                backgroundColor: colors.primary,
-                borderWidth: 3,
-                borderColor: `${colors.primary}1F`,
-                boxShadow: LIGHT_PRIMARY_HALO,
-              }
-            : variant === 'secondary'
-              ? {
-                  backgroundColor: 'rgba(255,255,255,0.8)',
-                  borderWidth: 2,
-                  borderColor: '#0A8FC4',
-                  boxShadow: LIGHT_SECONDARY_HALO,
-                }
-              : { backgroundColor: colors.accent, borderWidth: 0 }
-          : { borderWidth: 1.5, borderColor: colors.border },
-    inactive && styles.disabled,
+        ? darkVariantStyle(variant, colors, selected)
+        : lightVariantStyle(variant, colors),
+    inactive && (isDark ? { backgroundColor: DARK_DISABLED_BG, borderWidth: 0, boxShadow: undefined } : styles.disabled),
   ];
 
-  const textColor = variant === 'ghost'
-    ? (isDark ? g.soft : colors.secondary)
-    : isDark
-      ? (selected ? '#1A0016' : g.core)
-      : variant === 'secondary'
-        ? colors.secondary
-        : colors.onPrimary;
+  const textColor = inactive
+    ? isDark
+      ? DARK_DISABLED_TEXT
+      : colors.textMuted
+    : variant === 'ghost'
+      ? colors.secondary
+      : variant === 'accent'
+        ? isDark
+          ? ON_ACCENT_DARK
+          : colors.onPrimary
+        : isDark
+          ? variant === 'secondary'
+            ? DARK_SECONDARY_TEXT
+            : colors.onPrimary
+          : variant === 'secondary'
+            ? colors.secondary
+            : colors.onPrimary;
 
   return (
     <Pressable
@@ -128,6 +114,45 @@ export function AppButton({
       </Animated.View>
     </Pressable>
   );
+}
+
+function darkVariantStyle(variant: Variant, colors: ReturnType<typeof useTheme>['colors'], selected: boolean) {
+  if (variant === 'secondary') {
+    return {
+      borderWidth: 1.5,
+      borderColor: colors.secondary,
+      backgroundColor: selected ? colors.secondaryTint : 'transparent',
+    };
+  }
+  if (variant === 'accent') {
+    return { backgroundColor: colors.accent, boxShadow: DARK_SHADOW };
+  }
+  // primary
+  return {
+    backgroundColor: selected ? colors.primaryPressed : colors.primary,
+    boxShadow: DARK_SHADOW,
+  };
+}
+
+function lightVariantStyle(variant: Variant, colors: ReturnType<typeof useTheme>['colors']) {
+  if (variant === 'secondary') {
+    return {
+      backgroundColor: 'rgba(255,255,255,0.8)',
+      borderWidth: 2,
+      borderColor: '#0A8FC4',
+      boxShadow: LIGHT_SECONDARY_HALO,
+    };
+  }
+  if (variant === 'accent') {
+    return { backgroundColor: colors.accent, borderWidth: 0 };
+  }
+  // primary
+  return {
+    backgroundColor: colors.primary,
+    borderWidth: 3,
+    borderColor: `${colors.primary}1F`,
+    boxShadow: LIGHT_PRIMARY_HALO,
+  };
 }
 
 const styles = StyleSheet.create({

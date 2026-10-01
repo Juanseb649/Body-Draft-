@@ -29,10 +29,9 @@ function AppShell() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="welcome" />
         <Stack.Screen name="auth" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="editor/index" />
-        <Stack.Screen name="model3d/index" />
-        <Stack.Screen name="artists/index" />
+        <Stack.Screen name="(drawer)" />
+        {/* Drill-down: se apilan ENCIMA del menu lateral y llevan chevron
+            de volver, no boton de menu. */}
         <Stack.Screen name="artists/[id]" />
         <Stack.Screen name="appointment/[artistId]" />
       </Stack>

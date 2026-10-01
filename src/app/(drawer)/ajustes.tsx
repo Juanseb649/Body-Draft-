@@ -71,7 +71,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.appearance.reduceMotion}
               onValueChange={settings.setReduceMotion}
-              trackColor={{ false: colors.border, true: palette.fuchsia }}
+              trackColor={{ false: colors.border, true: colors.selection }}
               thumbColor={palette.white}
             />
           }
@@ -85,7 +85,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.notifications.appointmentReminder}
               onValueChange={settings.setAppointmentReminder}
-              trackColor={{ false: colors.border, true: palette.fuchsia }}
+              trackColor={{ false: colors.border, true: colors.selection }}
               thumbColor={palette.white}
             />
           }
@@ -104,7 +104,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.notifications.artistMessages}
               onValueChange={settings.setArtistMessages}
-              trackColor={{ false: colors.border, true: palette.fuchsia }}
+              trackColor={{ false: colors.border, true: colors.selection }}
               thumbColor={palette.white}
             />
           }
@@ -115,7 +115,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.notifications.news}
               onValueChange={settings.setNews}
-              trackColor={{ false: colors.border, true: palette.fuchsia }}
+              trackColor={{ false: colors.border, true: colors.selection }}
               thumbColor={palette.white}
             />
           }
