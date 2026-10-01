@@ -8,7 +8,7 @@ import { ArtistCard } from '../../components/molecules/ArtistCard';
 import { SectionHeader } from '../../components/molecules/SectionHeader';
 import { useArtistStore } from '../../controllers/useArtistStore';
 import type { GlowTone } from '../../theme';
-import { palette, type as typo, useTheme } from '../../theme';
+import { type as typo, useTheme } from '../../theme';
 
 const FILTERS = ['Cerca de ti', 'Mejor valorados', 'Estilo'];
 const TONES: GlowTone[] = ['fuchsia', 'blue', 'amber'];
@@ -33,7 +33,7 @@ export default function ArtistsScreen() {
   if (isLoading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={palette.fuchsia} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }

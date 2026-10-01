@@ -21,15 +21,18 @@ export function NeonWall({
 }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const { colors, scheme } = useTheme();
-  const gridOpacity = scheme === 'dark' ? 0.5 : 0.06;
+  // "Modo oscuro: sin neon" (guia): sin resplandor ni retícula, solo el
+  // fondo plano. En claro se mantiene la pared con retícula + resplandor.
+  const isDark = scheme === 'dark';
+  const gridOpacity = isDark ? 0 : 0.035;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width="100%" height="100%">
         <Defs>
           <RadialGradient id={`glow${id}`} cx="50%" cy="40%" rx="90%" ry="45%" fx="50%" fy="40%">
-            <Stop offset="0" stopColor={TINT[primary]} stopOpacity={scheme === 'dark' ? 0.16 : 0.1} />
-            <Stop offset="0.55" stopColor={TINT[secondary]} stopOpacity={scheme === 'dark' ? 0.07 : 0.04} />
+            <Stop offset="0" stopColor={TINT[primary]} stopOpacity={isDark ? 0 : 0.1} />
+            <Stop offset="0.55" stopColor={TINT[secondary]} stopOpacity={isDark ? 0 : 0.04} />
             <Stop offset="0.8" stopColor={TINT[secondary]} stopOpacity={0} />
           </RadialGradient>
           <Pattern id={`grid${id}`} width={cell} height={cell} patternUnits="userSpaceOnUse">

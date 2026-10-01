@@ -13,7 +13,7 @@ import { useAuthStore } from '../../controllers/useAuthStore';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import type { TattooDesign } from '../../models/tattooDesign';
-import { palette, type as typo, useTheme } from '../../theme';
+import { type as typo, useTheme } from '../../theme';
 
 const STYLES = ['Línea fina', 'Tradicional', 'Japonés', 'Blackwork', 'Acuarela'];
 
@@ -84,7 +84,7 @@ export default function DesignScreen() {
             value={prompt}
             onChangeText={setPrompt}
             placeholderTextColor={colors.placeholder}
-            selectionColor={palette.fuchsia}
+            selectionColor={colors.primary}
             multiline
           />
 

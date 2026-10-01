@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Artist } from '../../models/artist';
-import { fonts, glow, type as typo, useTheme, type GlowTone } from '../../theme';
+import { flatToneColor, fonts, neonLightHaloColor, type as typo, useTheme, type GlowTone } from '../../theme';
 import { AppButton } from '../atoms/AppButton';
 
 /** Molecula: fila de tatuador en la pantalla "Artistas". */
@@ -16,18 +16,30 @@ export function ArtistCard({
   onPress?: () => void;
   onAgendarPress?: () => void;
 }) {
-  const { colors } = useTheme();
-  const g = glow[tone];
+  const { colors, scheme } = useTheme();
+  const isLight = scheme === 'light';
+  const core = flatToneColor(scheme, tone);
   const styles = createStyles(colors);
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.row, pressed && { borderColor: g.color, boxShadow: `0 0 16px ${g.color}55` }]}
+      style={({ pressed }) =>
+        isLight
+          ? [styles.row, pressed && { borderColor: core, boxShadow: `0 0 16px ${neonLightHaloColor(tone, 0.35)}` }]
+          : [styles.row, pressed && { borderColor: core }]
+      }
     >
-      <View style={[styles.avatar, { borderColor: g.core, boxShadow: `0 0 10px ${g.color}, inset 0 0 8px ${g.color}99` }]}>
-        <Text style={[styles.avatarLabel, { color: g.core }]}>{artist.name.charAt(0)}</Text>
+      <View
+        style={[
+          styles.avatar,
+          isLight
+            ? { borderColor: core, boxShadow: `0 0 10px ${neonLightHaloColor(tone, 0.6)}` }
+            : { borderColor: core },
+        ]}
+      >
+        <Text style={[styles.avatarLabel, { color: core }]}>{artist.name.charAt(0)}</Text>
       </View>
       <View style={styles.info}>
         <Text style={styles.name}>{artist.name}</Text>

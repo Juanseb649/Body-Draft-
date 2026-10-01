@@ -6,14 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton } from '../../components/atoms/AppButton';
 import { artistRepository } from '../../core/services';
 import type { Artist } from '../../models/artist';
-import { glow, type as typo, useTheme } from '../../theme';
+import { neonLightCore, neonLightHaloColor, type as typo, useTheme } from '../../theme';
 
 /** Perfil del artista: bio + portafolio, con acceso a agendar cita. */
 export default function ArtistProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const [artist, setArtist] = useState<Artist | undefined>(undefined);
 
   const styles = createStyles(colors);
@@ -38,8 +38,17 @@ export default function ArtistProfileScreen() {
             <Text style={[typo.title, { color: colors.textStrong }]}>‹</Text>
           </Pressable>
 
-          <View style={[styles.avatar, { borderColor: glow.fuchsia.core, boxShadow: `0 0 12px ${glow.fuchsia.color}` }]}>
-            <Text style={[styles.avatarLabel, { color: glow.fuchsia.core }]}>{artist.name.charAt(0)}</Text>
+          <View
+            style={[
+              styles.avatar,
+              scheme === 'light'
+                ? { borderColor: neonLightCore('fuchsia'), boxShadow: `0 0 12px ${neonLightHaloColor('fuchsia')}` }
+                : { borderColor: colors.primaryText },
+            ]}
+          >
+            <Text style={[styles.avatarLabel, { color: scheme === 'light' ? neonLightCore('fuchsia') : colors.primaryText }]}>
+              {artist.name.charAt(0)}
+            </Text>
           </View>
           <Text style={[typo.title, { color: colors.textStrong, marginTop: 12 }]}>{artist.name}</Text>
           <Text style={[typo.bodyStrong, { color: colors.secondary }]}>{artist.specialty}</Text>
@@ -75,7 +84,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     avatarLabel: { fontSize: 44, fontFamily: 'Sacramento' },
     row: { gap: 12, paddingHorizontal: 20 },
-    portfolioImage: { flex: 1, aspectRatio: 1, borderRadius: 14, backgroundColor: colors.surfaceSunken },
+    portfolioImage: { flex: 1, aspectRatio: 1, borderRadius: 14, backgroundColor: colors.surfaceRaised },
     footer: { paddingHorizontal: 20, marginTop: 24 },
   });
 }

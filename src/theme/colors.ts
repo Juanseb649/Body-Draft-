@@ -1,4 +1,4 @@
-/** Tonos crudos de marca (tubos de neon). Fijos: se ven igual en ambos temas. */
+/** Tonos crudos de marca (tubos de neon, solo para el halo en modo claro). */
 export const palette = {
   fuchsia: '#FF2BD6',
   fuchsiaDeep: '#C4009E',
@@ -22,35 +22,44 @@ export const palette = {
 } as const;
 
 /**
- * Tokens de color (src/theme/colors.ts en la guia de diseno). Mismo
- * nombre en ambos temas; el resto del codigo solo debe leer
- * `useTheme().colors.token`, nunca un hex suelto.
+ * Tokens de color (src/theme/colors.ts en la guia de diseno, "Tokens de
+ * color"). Mismo nombre en ambos temas; el resto del codigo solo debe
+ * leer `useTheme().colors.token`, nunca un hex suelto.
+ *
+ * Oscuro: "sin neon" — negro calido (no negro puro, evita halo en OLED),
+ * profundidad por 4 niveles de superficie (sunken < background < surface
+ * < surfaceRaised), colores de marca planos, sombras solo negras.
+ * Claro: mantiene el neon (ver `neonLightCore`/`neonLightHaloColor` y
+ * "Neón en claro: 3 capas" en NeonText/NeonPath).
  */
 export const darkColors = {
-  background: '#120A1C',
-  surface: '#1A1026',
-  surfaceSunken: '#0F0818',
-  border: 'rgba(255,255,255,0.12)',
+  background: '#131015',
+  surface: '#1C1820',
+  surfaceSunken: '#0E0C10',
+  surfaceRaised: '#26212B',
+  border: '#2F2935',
   textStrong: '#FFFFFF',
-  text: '#EDE6F2',
-  textMuted: '#B9AEC6',
-  placeholder: '#8B7E98',
-  primary: '#FF2BD6',
-  primaryPressed: 'rgba(255,43,214,0.18)',
-  onPrimary: '#1A0016',
-  primaryTint: 'rgba(255,43,214,0.18)',
-  secondary: '#22D3FF',
-  secondaryTint: 'rgba(34,211,255,0.14)',
-  accent: '#FFD23F',
-  success: '#4BE3A5',
-  danger: '#FF6B8A',
+  text: '#EFEAF2',
+  textMuted: '#A99FB0',
+  placeholder: '#7E7486',
+  primary: '#D42A40',
+  primaryPressed: '#B21F33',
+  primaryText: '#FF6B7D',
+  onPrimary: '#FFFFFF',
+  primaryTint: '#3A1820',
+  secondary: '#5BC0EB',
+  secondaryTint: '#1F3A48',
+  selection: '#1F6F94',
+  accent: '#F2B84B',
+  success: '#4CC38A',
+  danger: '#F28B82',
 } as const;
 
-/** Valores tal cual la tabla "Tokens de color" de la guia (pagina 14). */
 export const lightColors = {
   background: '#FBF7F4',
   surface: '#FFFFFF',
   surfaceSunken: '#F3ECF0',
+  surfaceRaised: '#F3ECF0',
   border: '#E6DCE3',
   textStrong: '#1C1424',
   text: '#1C1424',
@@ -58,10 +67,12 @@ export const lightColors = {
   placeholder: '#8A7D93',
   primary: '#C8102E',
   primaryPressed: '#A30D25',
+  primaryText: '#C8102E',
   onPrimary: '#FFFFFF',
   primaryTint: '#FDE8EB',
   secondary: '#0A6C96',
   secondaryTint: '#DDF6FF',
+  selection: '#0A6C96',
   accent: '#8A5A00',
   success: '#0B7A53',
   danger: '#8E1B2C',
@@ -74,7 +85,7 @@ export const colors = darkColors;
 
 export type GlowTone = 'fuchsia' | 'blue' | 'amber';
 
-/** Tonos del tubo de neon: core (mas claro) - soft - color - deep. */
+/** Tonos del tubo de neon (solo usados en modo claro). */
 export const glow: Record<GlowTone, { core: string; soft: string; color: string; deep: string }> = {
   fuchsia: { core: palette.fuchsiaCore, soft: palette.fuchsiaSoft, color: palette.fuchsia, deep: palette.fuchsiaDeep },
   blue: { core: palette.blueCore, soft: palette.blueSoft, color: palette.blue, deep: palette.blueDeep },
@@ -82,11 +93,21 @@ export const glow: Record<GlowTone, { core: string; soft: string; color: string;
 };
 
 /**
- * "Neón en claro" (guia, pagina "Tokens de color"): en modo claro el
- * nucleo del logo/icono es el tono ya oscurecido para contraste — el
- * mismo valor que `lightColors.primary/secondary/accent` — y el halo usa
- * el tono crudo original (mas brillante) en baja opacidad. `fuchsia` usa
- * el rojo explicito de la guia (rgb 255,45,85); `blue`/`amber` reusan su
+ * Color solido plano de un tono por tema — reemplaza al halo en oscuro
+ * ("sin neon": colores de marca planos) y es el nucleo del tubo en claro.
+ */
+export function flatToneColor(scheme: 'light' | 'dark', tone: GlowTone): string {
+  const c = scheme === 'dark' ? darkColors : lightColors;
+  if (tone === 'fuchsia') return c.primaryText;
+  if (tone === 'blue') return c.secondary;
+  return c.accent;
+}
+
+/**
+ * "Neón en claro" (guia, "Tokens de color"): en modo claro el nucleo del
+ * logo/icono es el tono ya oscurecido para contraste y el halo usa el
+ * tono crudo original (mas brillante) en baja opacidad. `fuchsia` usa el
+ * rojo explicito de la guia (rgb 255,45,85); `blue`/`amber` reusan su
  * propio tono crudo de `palette` como halo, por simetria con el mismo
  * criterio.
  */
@@ -98,9 +119,7 @@ const LIGHT_HALO_RGB: Record<GlowTone, string> = {
 
 /** Nucleo solido de un "logo" en modo claro (mismo valor que `lightColors`). */
 export function neonLightCore(tone: GlowTone): string {
-  if (tone === 'fuchsia') return lightColors.primary;
-  if (tone === 'blue') return lightColors.secondary;
-  return lightColors.accent;
+  return flatToneColor('light', tone);
 }
 
 /** Color de halo (mas brillante que el nucleo) en modo claro, como rgb()/rgba(). */

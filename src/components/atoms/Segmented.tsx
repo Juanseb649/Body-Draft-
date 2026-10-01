@@ -28,7 +28,7 @@ export function Segmented<T extends string>({
               styles.option,
               active &&
                 (isDark
-                  ? { backgroundColor: `${colors.primary}33`, borderColor: colors.primary, borderWidth: 1 }
+                  ? { backgroundColor: colors.surfaceRaised }
                   : { backgroundColor: colors.surface, boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }),
             ]}
           >

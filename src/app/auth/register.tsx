@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton } from '../../components/atoms/AppButton';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
-import { palette, type as typo, useTheme } from '../../theme';
+import { type as typo, useTheme } from '../../theme';
 
 /**
  * Pantalla "Crear cuenta". Si el proyecto de Supabase tiene
@@ -55,7 +55,7 @@ export default function RegisterScreen() {
               style={styles.input}
               placeholder="Nombre"
               placeholderTextColor={colors.placeholder}
-              selectionColor={palette.blue}
+              selectionColor={colors.secondary}
               value={name}
               onChangeText={setName}
             />
@@ -63,7 +63,7 @@ export default function RegisterScreen() {
               style={styles.input}
               placeholder="Correo"
               placeholderTextColor={colors.placeholder}
-              selectionColor={palette.blue}
+              selectionColor={colors.secondary}
               autoCapitalize="none"
               keyboardType="email-address"
               value={email}
@@ -73,7 +73,7 @@ export default function RegisterScreen() {
               style={styles.input}
               placeholder="Contraseña"
               placeholderTextColor={colors.placeholder}
-              selectionColor={palette.blue}
+              selectionColor={colors.secondary}
               secureTextEntry
               value={password}
               onChangeText={setPassword}
