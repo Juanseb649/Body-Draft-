@@ -4,8 +4,10 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
+import { Segmented } from '../../components/atoms/Segmented';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import type { AccountRole } from '../../controllers/useSettingsStore';
 import { type as typo, useTheme } from '../../theme';
 
 /**
@@ -23,12 +25,19 @@ export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<AccountRole>('client');
+  const [specialty, setSpecialty] = useState('');
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
   const styles = createStyles(colors);
+  const isArtist = role === 'artist';
 
   const handleSubmit = async () => {
-    const ok = await signUp(email.trim(), password, name.trim());
+    const ok = await signUp(email.trim(), password, {
+      name: name.trim(),
+      role,
+      specialty: isArtist ? specialty.trim() || undefined : undefined,
+    });
     if (!ok) return;
     if (session) router.replace('/');
     else setNeedsConfirmation(true);
@@ -79,6 +88,37 @@ export default function RegisterScreen() {
               onChangeText={setPassword}
             />
 
+            {/* El rol se decide aqui y no despues en Ajustes: `profiles`
+                se crea en el mismo registro, asi que un tatuador que lo
+                elija ahora ya aparece en la lista de artistas sin tener
+                que encontrar un ajuste escondido. */}
+            <Text style={styles.label}>¿Cómo vas a usar BodyDraft?</Text>
+            <Segmented
+              value={role}
+              onChange={setRole}
+              options={[
+                { value: 'client', label: 'Me quiero tatuar' },
+                { value: 'artist', label: 'Soy tatuador' },
+              ]}
+            />
+
+            {isArtist && (
+              <TextInput
+                style={styles.input}
+                placeholder="Especialidad (p. ej. Blackwork, Realismo)"
+                placeholderTextColor={colors.placeholder}
+                selectionColor={colors.secondary}
+                value={specialty}
+                onChangeText={setSpecialty}
+              />
+            )}
+
+            <Text style={styles.hint}>
+              {isArtist
+                ? 'Tu perfil será visible para quienes busquen tatuador y podrás recibir citas.'
+                : 'Podrás diseñar, probar sobre el cuerpo y agendar con tatuadores.'}
+            </Text>
+
             {error && <Text style={styles.error}>{error}</Text>}
 
             <AppButton
@@ -113,6 +153,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: 18,
       padding: 14,
     },
+    label: { ...typo.label, color: colors.textMuted, marginTop: 4 },
+    hint: { ...typo.caption, color: colors.textMuted },
     error: { ...typo.caption, color: colors.danger },
     link: { ...typo.bodyStrong, color: colors.primary, textAlign: 'center', marginTop: 8 },
     confirmText: { ...typo.body, color: colors.text, textAlign: 'center' },

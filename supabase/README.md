@@ -12,6 +12,32 @@ el SQL Editor del dashboard) o con la Supabase CLI.
 2. Pegar el contenido completo de cada archivo en `migrations/`, en
    orden (por nombre/fecha), y ejecutar.
 
+El orden importa en dos de ellas: `20261002130000_seed_demo_artists.sql`
+siembra cuentas cuyo rol lo escribe el trigger que define
+`20261002120000_role_from_signup.sql`.
+
+## Qué hay en cada migración
+
+| Archivo | Qué hace |
+| --- | --- |
+| `20260929120000_profiles_and_appointments.sql` | `profiles` + `appointments`, RLS y el trigger que crea el perfil al registrarse |
+| `20260930120000_artist_designs.sql` | `designs`: el catálogo público que alimenta el feed de Inicio |
+| `20261002120000_role_from_signup.sql` | El rol y la especialidad se eligen **al registrarse**, no después en Ajustes |
+| `20261002130000_seed_demo_artists.sql` | Dos tatuadores de demostración con portafolio (**solo desarrollo**) |
+
+## Comprobar que quedó bien
+
+Después de aplicar las dos últimas:
+
+```bash
+node tools/verify-artists.mjs
+```
+
+Inicia sesión con una de las cuentas sembradas y lee `profiles` y
+`designs` por la API pública, con la misma anon key y las mismas
+policies de RLS que usa la app — o sea, comprueba lo que la app va a
+ver, no lo que hay en la base por detrás.
+
 ## Adoptar la Supabase CLI (recomendado, no obligatorio)
 
 ```bash

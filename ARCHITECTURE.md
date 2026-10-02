@@ -431,10 +431,14 @@ dato es compartido entre cuentas, no local a una.
 
 ## 12. Pendiente / fuera del MVP
 
-- Un tatuador nuevo (Ajustes > "Soy tatuador") no tiene todavia pantalla
-  para editar `specialty`/`bio`/portafolio en `profiles` — aparece en la
-  lista de Artistas con esos campos vacios hasta que exista "Editar
-  perfil".
+- Un tatuador no tiene todavia pantalla para editar `bio`, `location` ni
+  su portafolio en `profiles`. El rol y la `specialty` ya se eligen al
+  registrarse (`auth/register.tsx` -> `raw_user_meta_data` ->
+  `handle_new_user()`, ver 20261002120000_role_from_signup.sql), asi que
+  aparece en la lista de Artistas con nombre y estilo; el resto queda
+  vacio hasta que exista "Editar perfil". Esa pantalla es tambien la que
+  deberia permitir subir bocetos al catalogo (`designs`), que hoy solo se
+  puede sembrar por SQL.
 - Notificar al tatuador de una cita nueva es pasivo: la ve cuando abre su
   propia Agenda (RLS de `appointments` se lo permite), pero no hay push
   notification todavia. Requiere Expo push tokens + Supabase Realtime o
