@@ -20,7 +20,7 @@ export default function WelcomeScreen() {
       <NeonWall />
 
       <View style={styles.center}>
-        <BodyDraftLogo size={104} style={{ opacity: 0.35 }} />
+        <BodyDraftLogo size={104} />
         <NeonText tone="amber" style={typo.tagline} containerStyle={styles.tagline}>
           diseña · agenda · tatúa
         </NeonText>
