@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { WebView } from 'react-native-webview';
+
+/** Escapa lo que va dentro de un atributo HTML. */
+function attr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
 
 /**
  * Organismo: maniquin 3D rotable dentro de un WebView, usando el web
@@ -8,20 +13,27 @@ import { WebView } from 'react-native-webview';
  * adicional (`react-native-webview` esta incluido en Expo Go) —
  * ver services/bodyModelService.ts.
  *
- * `modelUrl` suele ser un data URI con el .glb embebido (unos 100 KB),
- * asi que se inyecta por JS en vez de interpolarlo en el atributo
- * `src`: evita reconstruir toda la cadena HTML en cada render.
+ * `modelUrl` es un data URI con el .glb entero dentro, y el maniqui
+ * femenino son ~1,2 MB en base64. Va interpolado en el HTML a
+ * proposito, NO por `injectJavaScript`: en Android eso acaba en
+ * `WebView.evaluateJavascript`, que con payloads de ese tamano falla
+ * de forma silenciosa (el modelo simplemente no aparece). El `source`
+ * del WebView no tiene ese limite.
  */
 export function BodyModelViewer({ modelUrl, alt }: { modelUrl: string; alt: string }) {
-  // El HTML no depende del modelo: se monta una sola vez y el .glb
-  // entra despues por `injectedJavaScript`, que si cambia con la silueta.
+  // Cambiar de silueta cambia el html y el WebView recarga solo. Eso
+  // vuelve a pedir model-viewer a unpkg, pero sale de la cache HTTP
+  // del propio WebView, no de la red.
   const html = useMemo(
     () => `
     <!DOCTYPE html>
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-        <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+        <!-- Version fijada a proposito: sin ella unpkg sirve la ultima
+             publicada, y una major nueva de model-viewer puede romper
+             el visor sin que nadie haya tocado el repo. -->
+        <script type="module" src="https://unpkg.com/@google/model-viewer@4.3.1/dist/model-viewer.min.js"></script>
         <style>
           html, body { margin: 0; height: 100%; background: #131015; overflow: hidden; }
           model-viewer {
@@ -34,8 +46,8 @@ export function BodyModelViewer({ modelUrl, alt }: { modelUrl: string; alt: stri
       </head>
       <body>
         <model-viewer
-          id="viewer"
-          alt=""
+          src="${attr(modelUrl)}"
+          alt="${attr(alt)}"
           auto-rotate
           auto-rotate-delay="1200"
           rotation-per-second="18deg"
@@ -53,37 +65,16 @@ export function BodyModelViewer({ modelUrl, alt }: { modelUrl: string; alt: stri
       </body>
     </html>
   `,
-    []
+    [modelUrl, alt]
   );
-
-  const setModel = `
-    (function () {
-      var v = document.getElementById('viewer');
-      if (v) {
-        v.setAttribute('alt', ${JSON.stringify(alt)});
-        v.src = ${JSON.stringify(modelUrl)};
-      }
-      true;
-    })();
-  `;
-
-  // Al cambiar de silueta solo se reemplaza el .glb: el WebView sigue
-  // montado, asi no se vuelve a descargar <model-viewer> cada vez.
-  const webRef = useRef<WebView>(null);
-  useEffect(() => {
-    webRef.current?.injectJavaScript(setModel);
-  }, [setModel]);
 
   return (
     <WebView
-      ref={webRef}
       originWhitelist={['*']}
       source={{ html }}
-      injectedJavaScript={setModel}
       style={{ flex: 1, backgroundColor: '#131015' }}
       javaScriptEnabled
       domStorageEnabled
-      allowFileAccess
       // El maniqui se gira con el dedo: el WebView no debe hacer scroll.
       scrollEnabled={false}
       bounces={false}

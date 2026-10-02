@@ -13,6 +13,22 @@ Los `.glb` de esta carpeta son los modelos que muestra la pantalla
 `build-mannequin.mjs` NO genera `feminine`: esta excluido a proposito
 de su lista de siluetas para no sobrescribir el modelo importado.
 
+## Si sale "Unable to resolve module ...mannequin-X.glb"
+
+`glb` **no** es una extension de asset por defecto de Metro: la añade
+`metro.config.js` (`config.resolver.assetExts.push('glb')`). Metro
+cachea su configuracion, asi que un servidor que se arranco antes de
+que ese archivo existiera sigue tratando el `.glb` como codigo fuente
+y lista candidatos `.glb.ts`, `.glb.tsx`... que no existen.
+
+Se arregla arrancando una vez con la cache limpia:
+
+```bash
+npx expo start --clear
+```
+
+Lo mismo aplica a cualquier cambio futuro de `metro.config.js`.
+
 ## Convencion
 
 Todo modelo que entre aqui tiene que quedar con:
