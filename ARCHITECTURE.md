@@ -446,14 +446,37 @@ dato es compartido entre cuentas, no local a una.
 - Subida de imagenes/snapshots a storage remoto (hoy se guardan URIs
   locales del dispositivo).
 - Texturizado real del diseno sobre la malla 3D en `model3d.tsx`. El
-  maniquin ya es propio: `tools/build-mannequin.mjs` genera los tres
-  `.glb` (neutro / masculino / femenino) por codigo —lofts de secciones
-  elipticas, sin dependencias ni assets externos— y los embebe como data
-  URI en `src/assets/mannequinModels.generated.ts`. Falta el pipeline de
-  aplicar el PNG del diseno como decal: hoy la malla no lleva UVs, habria
-  que generarlas en el mismo script (u = angulo del anillo, v = recorrido
-  del loft) y mapear cada `BodyZone` a su rango uv en
-  `bodyModelService.mapToMeshUV`.
+  maniquin ya no es un placeholder remoto. Los `.glb` viven en
+  `assets/models/` y tienen dos origenes distintos:
+  - `neutral` y `masculine` los **genera** `tools/build-mannequin.mjs`
+    por codigo (lofts de secciones elipticas, sin dependencias ni
+    assets externos), ~86 KB cada uno.
+  - `feminine` es un **base mesh real** que se **importa** con
+    `tools/import-obj-model.mjs`, que convierte un `.obj` a `.glb` y lo
+    normaliza a la convencion de la app: 1.80 m de alto, pies en y = 0,
+    centrado en x/z y mirando a +Z (886 KB, 47.616 triangulos).
+    Tiene mucho mas detalle que los generados — dedos, ombligo,
+    anatomia real.
+
+  Cuidado al tocar `build-mannequin.mjs`: `feminine` esta fuera de su
+  lista de siluetas a proposito, porque correrlo sobrescribiria el
+  modelo importado.
+
+  Los `.glb` se entregan como **asset de Metro** (ver `metro.config.js`,
+  que añade `glb` a `assetExts`), no como cadena dentro del bundle JS:
+  en base64 el femenino solo ya pesaria 1,2 MB de bundle, y habria que
+  pasarlo entero por el puente hacia el WebView en cada cambio de
+  silueta. `bodyModelService.modelUriFor()` lo lee en runtime con
+  `expo-asset` + `expo-file-system` y lo convierte a data URI, cacheando
+  la promesa por silueta; `controllers/useBodyModel.ts` expone eso a la
+  pantalla con su estado de carga.
+
+  Falta el pipeline de aplicar el PNG del diseno como decal. Los
+  generados no llevan UVs (habria que emitirlas en el script:
+  u = angulo del anillo, v = recorrido del loft); el importado si las
+  tiene en el `.obj`, pero hoy se descartan con `--no-uv` porque nadie
+  las usa todavia. Despues hay que mapear cada `BodyZone` a su rango uv
+  en `bodyModelService.mapToMeshUV`.
 - Mensajeria: se elimino por completo a pedido del usuario (pantalla
   `(tabs)/mensajes.tsx`, ruta `messages/[id].tsx`, entrada en el dashboard
   y en `sectionIcons.ts`). Si se vuelve a pedir, lo natural es una tabla

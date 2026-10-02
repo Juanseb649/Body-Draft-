@@ -1,4 +1,6 @@
-import { MANNEQUIN_MODEL_URI } from '../assets/mannequinModels.generated';
+import { Asset } from 'expo-asset';
+import { File } from 'expo-file-system';
+
 import type { BodySilhouette, BodyZone } from '../models/bodyZone';
 import type { Placement } from '../models/placement';
 
@@ -18,8 +20,12 @@ import type { Placement } from '../models/placement';
  * nativo adicional (`react-native-webview` esta incluido en Expo Go).
  */
 export interface BodyModelService {
-  /** URL del asset .glb correspondiente a la silueta. */
-  modelAssetFor(silhouette: BodySilhouette): string;
+  /**
+   * Data URI del .glb de esa silueta, listo para el `src` de
+   * <model-viewer>. Es asincrono porque el .glb es un asset: en una
+   * build de produccion hay que copiarlo a disco antes de poder leerlo.
+   */
+  modelUriFor(silhouette: BodySilhouette): Promise<string>;
 
   /**
    * Traduce una zona del cuerpo + colocacion 2D (ajustada por el
@@ -29,15 +35,56 @@ export interface BodyModelService {
   mapToMeshUV(zone: BodyZone, silhouette: BodySilhouette, editorPlacement: Placement): Placement;
 }
 
+/**
+ * Los .glb van como asset de Metro (ver metro.config.js) y no como
+ * modulo JS: pesan entre 80 KB y 900 KB, y embebidos en base64 dentro
+ * del bundle lo engordarian mas de un megabyte cada uno.
+ *
+ * `feminine` es un base mesh real importado con
+ * `node tools/import-obj-model.mjs`; `neutral` y `masculine` siguen
+ * siendo los generados por `node tools/build-mannequin.mjs`.
+ */
+const MODEL_MODULE: Record<BodySilhouette, number> = {
+  /* eslint-disable @typescript-eslint/no-require-imports -- un asset de
+     Metro solo se puede referenciar con require(); un import daria el
+     binario, no el id del asset. */
+  neutral: require('../../assets/models/mannequin-neutral.glb'),
+  masculine: require('../../assets/models/mannequin-masculine.glb'),
+  feminine: require('../../assets/models/mannequin-feminine.glb'),
+  /* eslint-enable @typescript-eslint/no-require-imports */
+};
+
 export class BodyModelServiceImpl implements BodyModelService {
   /**
-   * Los tres maniquies se generan por codigo con
-   * `node tools/build-mannequin.mjs` y viajan embebidos como data URI
-   * (ver src/assets/mannequinModels.generated.ts): no hay descarga, el
-   * visor funciona sin red y las tres siluetas comparten topologia.
+   * Leer y codificar en base64 un .glb de ~900 KB tarda, asi que cada
+   * silueta se resuelve una sola vez por sesion. Se cachea la promesa,
+   * no el resultado: si la pantalla pide la misma silueta dos veces
+   * seguidas mientras la primera sigue en curso, no se lee dos veces.
    */
-  modelAssetFor(silhouette: BodySilhouette): string {
-    return MANNEQUIN_MODEL_URI[silhouette];
+  private cache = new Map<BodySilhouette, Promise<string>>();
+
+  modelUriFor(silhouette: BodySilhouette): Promise<string> {
+    const hit = this.cache.get(silhouette);
+    if (hit) return hit;
+
+    const pending = this.read(silhouette).catch((error) => {
+      // Un fallo cacheado dejaria la silueta rota para siempre.
+      this.cache.delete(silhouette);
+      throw error;
+    });
+    this.cache.set(silhouette, pending);
+    return pending;
+  }
+
+  private async read(silhouette: BodySilhouette): Promise<string> {
+    const asset = Asset.fromModule(MODEL_MODULE[silhouette]);
+    // En dev el asset vive en el servidor de Metro; downloadAsync lo
+    // baja a cache y rellena localUri.
+    if (!asset.localUri) await asset.downloadAsync();
+
+    const uri = asset.localUri ?? asset.uri;
+    const base64 = await new File(uri).base64();
+    return `data:model/gltf-binary;base64,${base64}`;
   }
 
   mapToMeshUV(_zone: BodyZone, _silhouette: BodySilhouette, editorPlacement: Placement): Placement {

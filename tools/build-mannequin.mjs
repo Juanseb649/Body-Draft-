@@ -7,7 +7,7 @@
  * union no se nota, que es justo el aspecto de un maniqui.
  *
  * Correr:  node tools/build-mannequin.mjs
- * Salida:  assets/models/*.glb  +  src/assets/mannequinModels.generated.ts
+ * Salida:  assets/models/mannequin-<silueta>.glb
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -154,9 +154,13 @@ function loft(mesh, rings, axis = 'y') {
  */
 const SILHOUETTES = {
   masculine: { shoulder: 1.0, chest: 1.0, waist: 1.0, hip: 1.0, limb: 1.0, bust: 0 },
-  feminine: { shoulder: 0.88, chest: 0.93, waist: 0.88, hip: 1.1, limb: 0.9, bust: 0.022 },
   neutral: { shoulder: 0.94, chest: 0.96, waist: 0.94, hip: 1.05, limb: 0.95, bust: 0 },
 };
+
+// OJO: `feminine` NO esta aqui a proposito. Ese maniqui ya no se
+// genera: es un base mesh real importado con tools/import-obj-model.mjs
+// (ver ARCHITECTURE.md). Si se volviera a añadir a esta lista, correr
+// el script sobrescribiria assets/models/mannequin-feminine.glb.
 
 function buildBody(p) {
   const mesh = new Mesh();
@@ -338,33 +342,9 @@ function toGlb(mesh, name) {
 // --- salida ---------------------------------------------------------
 
 mkdirSync(resolve(ROOT, 'assets/models'), { recursive: true });
-mkdirSync(resolve(ROOT, 'src/assets'), { recursive: true });
 
-const b64 = {};
 for (const [key, params] of Object.entries(SILHOUETTES)) {
   const glb = toGlb(buildBody(params), `maniqui-${key}`);
   writeFileSync(resolve(ROOT, `assets/models/mannequin-${key}.glb`), glb);
-  b64[key] = glb.toString('base64');
   console.log(`mannequin-${key}.glb  ${(glb.length / 1024).toFixed(0)} KB`);
 }
-
-const entries = Object.keys(SILHOUETTES)
-  .sort()
-  .map((k) => `  ${k}: 'data:model/gltf-binary;base64,${b64[k]}',`)
-  .join('\n');
-
-writeFileSync(
-  resolve(ROOT, 'src/assets/mannequinModels.generated.ts'),
-  `// GENERADO por tools/build-mannequin.mjs — no editar a mano.
-// Los .glb viajan embebidos como data URI para que <model-viewer>
-// (dentro del WebView) pueda cargarlos igual en Expo Go que en una
-// build de produccion, donde un require() resolveria a file:// y el
-// fetch quedaria bloqueado por el origen del WebView.
-import type { BodySilhouette } from '../models/bodyZone';
-
-export const MANNEQUIN_MODEL_URI: Record<BodySilhouette, string> = {
-${entries}
-};
-`
-);
-console.log('src/assets/mannequinModels.generated.ts escrito');

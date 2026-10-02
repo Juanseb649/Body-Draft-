@@ -33,7 +33,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#171218"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "backgroundColor": "#131015"
   }

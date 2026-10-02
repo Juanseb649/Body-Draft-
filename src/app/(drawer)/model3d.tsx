@@ -1,11 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chip } from '../../components/atoms/Chip';
 import { MenuButton } from '../../components/atoms/MenuButton';
 import { SectionIcon } from '../../components/atoms/SectionIcon';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
-import { bodyModelService } from '../../core/services';
+import { useBodyModel } from '../../controllers/useBodyModel';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { BODY_SILHOUETTES, BODY_ZONE_LABELS, type BodySilhouette } from '../../models/bodyZone';
 import { type as typo, useTheme } from '../../theme';
@@ -21,11 +21,20 @@ export default function BodyModelScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { bodyZone, silhouette, setSilhouette } = useEditorStore((s) => s);
-  const modelUrl = bodyModelService.modelAssetFor(silhouette);
+  const { uri, loading, error } = useBodyModel(silhouette);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <BodyModelViewer modelUrl={modelUrl} alt={`Maniquí 3D - ${BODY_ZONE_LABELS[bodyZone]}`} />
+      {uri ? (
+        <BodyModelViewer modelUrl={uri} alt={`Maniquí 3D - ${BODY_ZONE_LABELS[bodyZone]}`} />
+      ) : (
+        // Mismo fondo que el visor para que al cambiar de silueta no
+        // haya un parpadeo con el color del tema.
+        <View style={styles.placeholder}>
+          {loading && <ActivityIndicator color={colors.primaryText} />}
+          {error && <Text style={[typo.body, { color: '#FFFFFF', textAlign: 'center' }]}>{error}</Text>}
+        </View>
+      )}
 
       {/* El visor 3D tiene fondo oscuro propio en ambos temas, por eso
           los controles van sobre una tarjeta oscura y no sobre surface. */}
@@ -74,6 +83,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#131015', padding: 32 },
   spacer: { width: 44 },
   titleGroup: { flexDirection: 'row', alignItems: 'center' },
 });
