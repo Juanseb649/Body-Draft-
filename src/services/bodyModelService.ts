@@ -1,3 +1,4 @@
+import { MANNEQUIN_MODEL_URI } from '../assets/mannequinModels.generated';
 import type { BodySilhouette, BodyZone } from '../models/bodyZone';
 import type { Placement } from '../models/placement';
 
@@ -28,28 +29,22 @@ export interface BodyModelService {
   mapToMeshUV(zone: BodyZone, silhouette: BodySilhouette, editorPlacement: Placement): Placement;
 }
 
-// TODO: reemplazar por los assets reales una vez existan (ver
-// ARCHITECTURE.md, seccion "Pendiente"). Mientras tanto se sirven
-// desde una URL de ejemplo para poder probar el WebView + model-viewer.
-const MODEL_BASE_URL = 'https://modelviewer.dev/shared-assets/models';
-
 export class BodyModelServiceImpl implements BodyModelService {
+  /**
+   * Los tres maniquies se generan por codigo con
+   * `node tools/build-mannequin.mjs` y viajan embebidos como data URI
+   * (ver src/assets/mannequinModels.generated.ts): no hay descarga, el
+   * visor funciona sin red y las tres siluetas comparten topologia.
+   */
   modelAssetFor(silhouette: BodySilhouette): string {
-    switch (silhouette) {
-      case 'neutral':
-        return `${MODEL_BASE_URL}/Astronaut.glb`;
-      case 'masculine':
-        return `${MODEL_BASE_URL}/Astronaut.glb`;
-      case 'feminine':
-        return `${MODEL_BASE_URL}/Astronaut.glb`;
-    }
+    return MANNEQUIN_MODEL_URI[silhouette];
   }
 
   mapToMeshUV(_zone: BodyZone, _silhouette: BodySilhouette, editorPlacement: Placement): Placement {
     // Las tres siluetas comparten la misma topologia de malla (mismo
     // UV layout por zona), por lo que la colocacion elegida en el
     // editor de camara es directamente reutilizable en el maniquin 3D.
-    // TODO: cuando exista el asset real, ajustar aqui cualquier offset
+    // TODO: al generar las UVs del maniquin, ajustar aqui el offset
     // especifico de la zona (p. ej. curvatura del antebrazo).
     return editorPlacement;
   }

@@ -445,9 +445,15 @@ dato es compartido entre cuentas, no local a una.
   tatuador) — ver el TODO dentro de la migracion.
 - Subida de imagenes/snapshots a storage remoto (hoy se guardan URIs
   locales del dispositivo).
-- Texturizado real del diseno sobre la malla 3D en `model3d/index.tsx`
-  (`BodyModelViewer` ya renderiza un `.glb` de ejemplo; falta el asset real
-  del maniquin y el pipeline de aplicar el PNG del diseno como decal).
+- Texturizado real del diseno sobre la malla 3D en `model3d.tsx`. El
+  maniquin ya es propio: `tools/build-mannequin.mjs` genera los tres
+  `.glb` (neutro / masculino / femenino) por codigo —lofts de secciones
+  elipticas, sin dependencias ni assets externos— y los embebe como data
+  URI en `src/assets/mannequinModels.generated.ts`. Falta el pipeline de
+  aplicar el PNG del diseno como decal: hoy la malla no lleva UVs, habria
+  que generarlas en el mismo script (u = angulo del anillo, v = recorrido
+  del loft) y mapear cada `BodyZone` a su rango uv en
+  `bodyModelService.mapToMeshUV`.
 - Mensajeria: se elimino por completo a pedido del usuario (pantalla
   `(tabs)/mensajes.tsx`, ruta `messages/[id].tsx`, entrada en el dashboard
   y en `sectionIcons.ts`). Si se vuelve a pedir, lo natural es una tabla
