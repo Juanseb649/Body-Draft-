@@ -457,19 +457,17 @@ dato es compartido entre cuentas, no local a una.
 - Texturizado real del diseno sobre la malla 3D en `editor.tsx`. El
   maniquin ya no es un placeholder remoto. Los `.glb` viven en
   `assets/models/` y tienen dos origenes distintos:
-  - `masculine` lo **genera** `tools/build-mannequin.mjs` por codigo
-    (lofts de secciones elipticas, sin dependencias ni assets
-    externos), ~86 KB.
-  - `feminine` es un **base mesh real** que se **importa** con
-    `tools/import-obj-model.mjs`, que convierte un `.obj` a `.glb` y lo
-    normaliza a la convencion de la app: 1.80 m de alto, pies en y = 0,
-    centrado en x/z y mirando a +Z (886 KB, 47.616 triangulos).
-    Tiene mucho mas detalle que los generados — dedos, ombligo,
-    anatomia real.
+  Los dos (`masculine`, `feminine`) son **base meshes reales**
+  importados con `tools/import-obj-model.mjs`, que convierte un `.obj`
+  a `.glb` y lo normaliza a la convencion de la app: 1.80 m de alto,
+  pies en y = 0, centrado en x/z y mirando a +Z. Rondan los 48.000
+  triangulos y 870 KB cada uno, con dedos, rasgos y musculatura.
 
-  Cuidado al tocar `build-mannequin.mjs`: `feminine` esta fuera de su
-  lista de siluetas a proposito, porque correrlo sobrescribiria el
-  modelo importado.
+  Hubo un `tools/build-mannequin.mjs` que los generaba por codigo
+  (lofts de secciones elipticas, sin assets externos) mientras no
+  habia modelos de verdad. Se borro al llegar estos: ya no producia
+  nada que se usara, y correrlo sobrescribia los modelos buenos. Esta
+  en el historial de git si hiciera falta la tecnica.
 
   Los `.glb` se entregan como **asset de Metro** (ver `metro.config.js`,
   que añade `glb` a `assetExts`), no como cadena dentro del bundle JS:

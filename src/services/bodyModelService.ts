@@ -40,9 +40,8 @@ export interface BodyModelService {
  * modulo JS: pesan entre 80 KB y 900 KB, y embebidos en base64 dentro
  * del bundle lo engordarian mas de un megabyte cada uno.
  *
- * `feminine` es un base mesh real importado con
- * `node tools/import-obj-model.mjs`; `masculine` es el generado por
- * `node tools/build-mannequin.mjs`.
+ * Los dos son base meshes reales, importados de un .obj con
+ * `node tools/import-obj-model.mjs` (ver assets/models/README.md).
  */
 const MODEL_MODULE: Record<BodySilhouette, number> = {
   /* eslint-disable @typescript-eslint/no-require-imports -- un asset de

@@ -3,19 +3,27 @@ import { resolve } from 'node:path';
 
 /**
  * Los maniquies no se pueden revisar a ojo desde un test, pero si se
- * puede comprobar que cumplen el contrato con el que los usa la app.
+ * puede comprobar que cumplen el contrato con el que los usa la app:
+ * la misma altura, el mismo origen y una malla que se pueda iluminar.
  *
- * Esto no es teorico: escribiendo estas comprobaciones aparecio que los
- * dos brazos de los modelos generados tenian 28 aristas cada uno con
- * las dos caras recorriendolas en el mismo sentido. La malla cargaba
- * sin un solo error y se veia casi bien; solo se iluminaba mal una
- * banda del hombro.
+ * Esto no es teorico. Cuando los maniquies se generaban por codigo,
+ * escribir estas comprobaciones destapo que los dos brazos tenian 28
+ * aristas cada uno con las dos caras recorriendolas en el mismo
+ * sentido: la malla cargaba sin un solo error y solo se iluminaba mal
+ * una banda del hombro. Hoy los dos modelos son base meshes
+ * importados, y las comprobaciones siguen valiendo para lo mismo:
+ * detectar un .obj que entre mal convertido o mal orientado.
  */
 
 const MODELS = ['mannequin-masculine', 'mannequin-feminine'];
 
-/** El unico que se genera por codigo no es: viene de un .obj de terceros. */
-const IMPORTED = 'mannequin-feminine';
+/**
+ * Modelos que NO son estancos. Los dos maniquies son base meshes
+ * descargados; el femenino trae aberturas (unas 2.400 aristas de
+ * borde) y aun asi se ve perfecto, asi que exigirle que cierre seria
+ * rechazar un modelo valido.
+ */
+const NOT_WATERTIGHT = ['mannequin-feminine'];
 
 interface Mesh {
   positions: Float32Array;
@@ -122,10 +130,16 @@ describe.each(MODELS)('%s.glb', (name) => {
   it('tiene proporciones de cuerpo humano, no de caja', () => {
     const width = mesh.max[0] - mesh.min[0];
     const depth = mesh.max[2] - mesh.min[2];
-    // Brazos incluidos, una persona de pie mide entre 2,5 y 4,5 veces
-    // mas de alto que de ancho.
-    expect(1.8 / width).toBeGreaterThan(2.5);
+
+    // El margen es ancho porque la pose manda mas que el cuerpo: con
+    // los brazos pegados al tronco la relacion alto/ancho ronda 3, y
+    // en pose de A, con los brazos separados, baja a 1,8. Lo que esta
+    // comprobacion tiene que cazar es un modelo que no sea una persona
+    // de pie: un cubo da 1 y algo tumbado da menos.
+    expect(1.8 / width).toBeGreaterThan(1.5);
     expect(1.8 / width).toBeLessThan(4.5);
+
+    // Una persona es mas ancha que profunda en cualquier pose.
     expect(depth).toBeLessThan(width);
   });
 
@@ -221,9 +235,8 @@ describe.each(MODELS)('%s.glb', (name) => {
     expect(total / triangles).toBeGreaterThan(0.9);
   });
 
-  // Solo a los generados: un base mesh descargado puede traer aberturas
-  // (boca, interior de la cabeza) y aun asi verse perfecto.
-  (name === IMPORTED ? it.skip : it)('es una malla cerrada', () => {
+  // Ver NOT_WATERTIGHT: no todos los modelos tienen por que cerrar.
+  (NOT_WATERTIGHT.includes(name) ? it.skip : it)('es una malla cerrada', () => {
     const seen = new Map<string, number>();
     for (let t = 0; t < mesh.indices.length; t += 3) {
       const corners = [mesh.indices[t], mesh.indices[t + 1], mesh.indices[t + 2]];

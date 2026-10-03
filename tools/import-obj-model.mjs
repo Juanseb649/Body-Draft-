@@ -6,7 +6,7 @@
  * porque los modelos que se bajan de internet vienen con su propia
  * escala, su propio origen y a veces con el plano de fondo del render
  * incluido como un objeto mas. Aqui se normalizan a la misma
- * convencion que los maniquies generados por tools/build-mannequin.mjs:
+ * convencion que usa la app para todos los maniquies:
  * 1.80 m de alto, pies en y = 0, centrado en x/z y mirando a +Z.
  *
  * Uso:
