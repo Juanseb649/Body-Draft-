@@ -11,6 +11,7 @@ import { Chip } from '../../components/atoms/Chip';
 import { Icon, type IconName } from '../../components/atoms/Icon';
 import { MenuButton } from '../../components/atoms/MenuButton';
 import { SectionIcon } from '../../components/atoms/SectionIcon';
+import { Segmented } from '../../components/atoms/Segmented';
 import { Spinner } from '../../components/atoms/Spinner';
 import { DesignOverlay } from '../../components/molecules/DesignOverlay';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
@@ -310,8 +311,22 @@ export default function TattooEditorScreen() {
               Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.
             </Text>
 
+            <Text style={styles.label}>Fondo del boceto</Text>
+            <Segmented
+              value={proposal.hideBackground ? 'sin' : 'con'}
+              onChange={(v) => proposal.setHideBackground(v === 'sin')}
+              options={[
+                { value: 'sin', label: 'Sin fondo' },
+                { value: 'con', label: 'Con fondo' },
+              ]}
+            />
+            <Text style={styles.hint}>
+              &quot;Sin fondo&quot; vuelve transparente el papel del boceto al instante, aquí en el teléfono. Si está
+              sobre un fondo complicado y no basta, el recorte con IA entiende la escena.
+            </Text>
+
             <AppButton
-              label={hasCutout ? 'Restaurar fondo' : 'Quitar el fondo'}
+              label={hasCutout ? 'Deshacer recorte con IA' : 'Recortar con IA'}
               variant="secondary"
               size="M"
               isLoading={isProcessingImage}

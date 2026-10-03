@@ -66,3 +66,23 @@ describe('useEditorStore', () => {
     expect(typeof first).toBe('string');
   });
 });
+
+describe('useEditorStore.hideBackground', () => {
+  it('arranca recortado', () => {
+    // Un boceto con su hoja de papel encima de un brazo no se parece a
+    // un tatuaje: lo util por defecto es sin fondo.
+    expect(useEditorStore.getState().hideBackground).toBe(true);
+  });
+
+  it('se puede alternar y no toca la colocacion', () => {
+    useEditorStore.getState().setPlacement({ offsetX: 0.4, scale: 1.7 });
+
+    useEditorStore.getState().setHideBackground(false);
+    expect(useEditorStore.getState().hideBackground).toBe(false);
+
+    useEditorStore.getState().setHideBackground(true);
+    expect(useEditorStore.getState().hideBackground).toBe(true);
+    expect(useEditorStore.getState().placement.offsetX).toBe(0.4);
+    expect(useEditorStore.getState().placement.scale).toBe(1.7);
+  });
+});

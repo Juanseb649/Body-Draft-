@@ -15,6 +15,15 @@ interface EditorState extends TattooProposal {
   rotate: (degrees: number) => void;
   scale: (scale: number) => void;
   setOpacity: (opacity: number) => void;
+  /**
+   * Si el boceto se pinta con su fondo o recortado.
+   *
+   * Es una preferencia de VISTA, no del diseno: el mismo boceto se
+   * ve con fondo en la galeria y sin el sobre la piel, sin tener que
+   * guardar dos imagenes.
+   */
+  hideBackground: boolean;
+  setHideBackground: (value: boolean) => void;
   attachCameraSnapshot: (uri: string) => void;
   /** Descarta la captura y vuelve a la camara en vivo. */
   discardCameraSnapshot: () => void;
@@ -66,6 +75,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   scale: (scale) => set((s) => ({ placement: { ...s.placement, scale } })),
 
   setOpacity: (opacity) => set((s) => ({ placement: { ...s.placement, opacity } })),
+
+  // Por defecto recortado: un boceto pegado con su hoja de papel
+  // encima de un brazo no se parece a un tatuaje.
+  hideBackground: true,
+  setHideBackground: (hideBackground) => set({ hideBackground }),
 
   /**
    * Adjunta la foto tomada con la camara (diseno ya superpuesto sobre
@@ -134,5 +148,13 @@ function toProposal(state: EditorState): TattooProposal {
 
 /** Resetea el editor a una propuesta en blanco (nuevo diseno). */
 export function resetEditor(): void {
-  useEditorStore.setState(initialProposal());
+  // `setState` es una fusion parcial, asi que lo que no sea parte de la
+  // propuesta hay que devolverlo a su valor inicial a mano o se
+  // arrastraria del diseno anterior.
+  useEditorStore.setState({
+    ...initialProposal(),
+    hideBackground: true,
+    isRendering: false,
+    renderError: undefined,
+  });
 }

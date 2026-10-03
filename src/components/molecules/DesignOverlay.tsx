@@ -9,6 +9,8 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
+import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-native-svg';
+
 import { useEditorStore } from '../../controllers/useEditorStore';
 import type { TattooDesign } from '../../models/tattooDesign';
 import { displayImageUrl } from '../../models/tattooDesign';
@@ -27,6 +29,41 @@ const MIN_SCALE = 0.3;
 const MAX_SCALE = 2.5;
 
 /**
+ * Deja transparente el papel de un boceto, en el dispositivo y al
+ * instante.
+ *
+ * La matriz no toca el color (las tres primeras filas son la
+ * identidad) y calcula el alfa como `1 - luminancia`: el papel blanco
+ * sale con alfa 0 y la tinta negra con alfa 1. Los grises intermedios
+ * quedan semitransparentes, que es justo lo que suaviza el borde del
+ * trazo en vez de dejarlo dentado.
+ *
+ * Funciona bien con bocetos sobre papel claro, que es el caso normal.
+ * Para una foto con fondo complicado esta aparte el recorte con IA
+ * (AIService.removeBackground), que entiende la escena.
+ */
+const LUMINANCE_TO_ALPHA = ['1 0 0 0 0', '0 1 0 0 0', '0 0 1 0 0', '-0.33 -0.33 -0.33 0 1'].join(' ');
+
+function CutoutImage({ uri }: { uri: string }) {
+  return (
+    <Svg width={BASE_SIZE} height={BASE_SIZE}>
+      <Defs>
+        <Filter id="cutout">
+          <FeColorMatrix type="matrix" values={LUMINANCE_TO_ALPHA} />
+        </Filter>
+      </Defs>
+      <SvgImage
+        href={{ uri }}
+        width={BASE_SIZE}
+        height={BASE_SIZE}
+        preserveAspectRatio="xMidYMid meet"
+        filter="url(#cutout)"
+      />
+    </Svg>
+  );
+}
+
+/**
  * El boceto superpuesto, que se mueve, gira y se escala con los dedos.
  * Lee/escribe la colocacion en useEditorStore, asi que da igual si
  * debajo esta la camara o el maniquin: las dos vistas quedan
@@ -42,6 +79,7 @@ const MAX_SCALE = 2.5;
  */
 export function DesignOverlay({ design }: { design?: TattooDesign }) {
   const placement = useEditorStore((s) => s.placement);
+  const hideBackground = useEditorStore((s) => s.hideBackground);
   const setPlacement = useEditorStore((s) => s.setPlacement);
 
   // Tamaño del area visible, para no dejar escapar el boceto.
@@ -181,7 +219,11 @@ export function DesignOverlay({ design }: { design?: TattooDesign }) {
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none" onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.wrapper, style, { opacity: placement.opacity }]}>
-          <Image source={{ uri: displayImageUrl(design) }} style={styles.design} resizeMode="contain" />
+          {hideBackground ? (
+            <CutoutImage uri={displayImageUrl(design)} />
+          ) : (
+            <Image source={{ uri: displayImageUrl(design) }} style={styles.design} resizeMode="contain" />
+          )}
         </Animated.View>
       </GestureDetector>
     </View>
