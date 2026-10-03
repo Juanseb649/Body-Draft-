@@ -26,7 +26,7 @@ export function bodyModelHtml({
   modelUrl: string;
   textureUrl: string | null;
   anchors: string;
-  zone: string;
+  zone: string | null;
   background: string;
 }): string {
   return `<!DOCTYPE html>
@@ -82,7 +82,7 @@ export function bodyModelHtml({
       let body = null;
       let decal = null;
       let texture = null;
-      let current = { zone: ${JSON.stringify(zone)}, size: 1, rotation: 0, opacity: 1, cutout: true };
+      let current = { zone: ${JSON.stringify(zone)}, manual: null, size: 1, rotation: 0, opacity: 1, cutout: true };
 
       /**
        * Deja transparente el papel del boceto, con la misma regla que
@@ -131,6 +131,17 @@ export function bodyModelHtml({
         return { point: hit.point.clone(), normal, distance: anchor.distance };
       }
 
+      /** Encuadra el maniquin entero, que es como se abre la pantalla. */
+      function frameWholeBody() {
+        if (!body) return;
+        const box = new THREE.Box3().setFromObject(body);
+        const center = box.getCenter(new THREE.Vector3());
+        const height = box.max.y - box.min.y;
+        controls.target.copy(center);
+        camera.position.set(center.x, center.y, height * 1.25);
+        controls.update();
+      }
+
       function placeDecal() {
         if (decal) {
           scene.remove(decal);
@@ -140,7 +151,9 @@ export function bodyModelHtml({
         }
         if (!body || !texture) return;
 
-        const hit = hitFor(current.zone);
+        // Un toque manual manda sobre la zona: es colocacion fina
+        // sobre un sitio que la lista de zonas no nombra.
+        const hit = current.manual || (current.zone ? hitFor(current.zone) : null);
         if (!hit) return;
 
         // Orientacion: mirando a lo largo de la normal de la piel, con
@@ -186,7 +199,10 @@ export function bodyModelHtml({
           scene.add(gltf.scene);
           gltf.scene.updateMatrixWorld(true);
           loadTexture(() => {
-            frameZone(current.zone);
+            // Sin zona elegida se ve el cuerpo entero: preseleccionar una
+            // abria la pantalla con zoom en un sitio que nadie pidio.
+            if (current.zone) frameZone(current.zone);
+            else frameWholeBody();
             placeDecal();
             post({ type: 'ready' });
           });
@@ -210,7 +226,14 @@ export function bodyModelHtml({
       // boceto van en el HTML: son de cientos de KB y por
       // injectJavaScript fallarian en silencio en Android.
       window.bodyModel = {
-        setZone(zoneKey) { current.zone = zoneKey; frameZone(zoneKey); placeDecal(); },
+        setZone(zoneKey) {
+          current.zone = zoneKey;
+          // Elegir una zona descarta el toque manual anterior.
+          current.manual = null;
+          if (zoneKey) frameZone(zoneKey);
+          else frameWholeBody();
+          placeDecal();
+        },
         setSize(value) { current.size = value; placeDecal(); },
         setRotation(deg) { current.rotation = deg; placeDecal(); },
         setOpacity(value) {
@@ -219,6 +242,41 @@ export function bodyModelHtml({
         },
         setCutout(value) { current.cutout = value; texture = buildTexture(); placeDecal(); },
       };
+
+      // Tocar el maniquin coloca el tatuaje justo ahi. Se distingue del
+      // gesto de girar por cuanto se movio el dedo: por debajo de unos
+      // pocos pixeles es un toque, por encima lo estaba orbitando.
+      const pointer = { x: 0, y: 0, moved: 0, id: null };
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        pointer.id = e.pointerId;
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+        pointer.moved = 0;
+      });
+      renderer.domElement.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pointer.id) return;
+        pointer.moved = Math.max(pointer.moved, Math.hypot(e.clientX - pointer.x, e.clientY - pointer.y));
+      });
+      renderer.domElement.addEventListener('pointerup', (e) => {
+        if (e.pointerId !== pointer.id) return;
+        pointer.id = null;
+        if (pointer.moved > 8 || !body || !texture) return;
+
+        const rect = renderer.domElement.getBoundingClientRect();
+        const ndc = new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(ndc, camera);
+        const hit = ray.intersectObject(body, true)[0];
+        if (!hit) return;
+
+        const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+        current.manual = { point: hit.point.clone(), normal, distance: 0.4 };
+        placeDecal();
+        post({ type: 'placed' });
+      });
 
       window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;

@@ -51,3 +51,8 @@ export const BODY_ZONE_LABELS: Record<BodyZone, string> = {
  */
 export const BODY_SILHOUETTES = ['masculine', 'feminine'] as const;
 export type BodySilhouette = (typeof BODY_SILHOUETTES)[number];
+
+/** Etiqueta legible, tolerando que todavia no se haya elegido zona. */
+export function bodyZoneLabel(zone?: BodyZone): string {
+  return zone ? BODY_ZONE_LABELS[zone] : 'la zona elegida';
+}

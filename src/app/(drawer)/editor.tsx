@@ -21,6 +21,7 @@ import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useBodyModel } from '../../controllers/useBodyModel';
 import { useCameraController } from '../../controllers/useCameraController';
+import { useDataUri } from '../../controllers/useDataUri';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
@@ -28,6 +29,7 @@ import {
   BODY_SILHOUETTES,
   BODY_ZONES,
   BODY_ZONE_LABELS,
+  bodyZoneLabel,
   type BodySilhouette,
   type BodyZone,
 } from '../../models/bodyZone';
@@ -78,6 +80,9 @@ export default function TattooEditorScreen() {
   const [introOpen, setIntroOpen] = useState(!seenIntro);
 
   const model = useBodyModel(proposal.silhouette);
+  // El WebView no puede abrir el file:// que devuelve el selector de
+  // imagenes, asi que el boceto viaja convertido a data URI.
+  const sketchDataUri = useDataUri(design ? displayImageUrl(design) : null);
   const styles = createStyles(colors);
 
   // La pantalla se puede abrir directo desde el menu lateral, sin pasar
@@ -124,14 +129,14 @@ export default function TattooEditorScreen() {
       setConsentOpen(true);
       return;
     }
-    await proposal.renderWithAI(displayImageUrl(design), BODY_ZONE_LABELS[proposal.bodyZone]);
+    await proposal.renderWithAI(displayImageUrl(design), bodyZoneLabel(proposal.bodyZone));
   };
 
   const acceptConsent = async () => {
     setAllowAiPhoto(true);
     setConsentOpen(false);
     if (design) {
-      await proposal.renderWithAI(displayImageUrl(design), BODY_ZONE_LABELS[proposal.bodyZone]);
+      await proposal.renderWithAI(displayImageUrl(design), bodyZoneLabel(proposal.bodyZone));
     }
   };
 
@@ -189,7 +194,7 @@ export default function TattooEditorScreen() {
       return (
         <BodyModelViewer
           modelUrl={model.uri}
-          textureUrl={design ? displayImageUrl(design) : null}
+          textureUrl={sketchDataUri}
           zone={proposal.bodyZone}
           size={proposal.placement.scale}
           rotationDegrees={proposal.placement.rotationDegrees}
@@ -317,7 +322,7 @@ export default function TattooEditorScreen() {
           <>
             <Text style={styles.hint}>
               {mode === 'mannequin'
-                ? 'Gira el maniquí con el dedo. Elige una zona abajo y la app la enfoca y coloca ahí el tatuaje.'
+                ? 'Gira el maniquí con el dedo y toca dónde quieres el tatuaje. Las zonas de abajo enfocan y colocan por ti.'
                 : 'Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.'}
             </Text>
 

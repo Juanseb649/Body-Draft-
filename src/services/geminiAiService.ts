@@ -1,8 +1,8 @@
 import * as Crypto from 'expo-crypto';
-import { File } from 'expo-file-system';
 
 import type { TattooDesign } from '../models/tattooDesign';
 import type { AIService, ComposeOnPhotoInput } from './aiService';
+import { readAsInlineData } from './imageDataUri';
 
 const IMAGE_MODEL = 'gemini-3.1-flash-image';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -40,28 +40,6 @@ async function describeApiError(response: Response): Promise<string> {
     return `Gemini no encontró el modelo "${IMAGE_MODEL}" para esta key. (${detail})`;
   }
   return `Gemini (${response.status}): ${detail}`;
-}
-
-/** Extensiones que no coinciden con su tipo MIME por simple traduccion. */
-const MIME_BY_EXTENSION: Record<string, string> = { jpg: 'image/jpeg', heic: 'image/heic' };
-
-/**
- * Deja una imagen lista para viajar dentro del JSON de la peticion.
- *
- * Gemini no descarga URLs: la imagen va en base64 en el cuerpo. Un
- * boceto recien elegido del carrete es un `file://` del telefono, y uno
- * ya procesado antes puede ser un data URI; se contemplan los dos.
- */
-async function readAsInlineData(uri: string): Promise<{ mimeType: string; data: string }> {
-  const dataUri = uri.match(/^data:([^;]+);base64,(.*)$/s);
-  if (dataUri) return { mimeType: dataUri[1], data: dataUri[2] };
-
-  const file = new File(uri);
-  const extension = (file.extension || '.jpg').replace('.', '').toLowerCase();
-  return {
-    mimeType: file.type || MIME_BY_EXTENSION[extension] || `image/${extension}`,
-    data: await file.base64(),
-  };
 }
 
 /**

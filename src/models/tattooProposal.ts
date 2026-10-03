@@ -22,7 +22,14 @@ export interface TattooProposal {
   id: string;
   userId: string;
   designId: string;
-  bodyZone: BodyZone;
+  /**
+   * Zona elegida, o `undefined` mientras no se haya elegido ninguna.
+   *
+   * Un borrador recien abierto NO tiene zona: preseleccionar una
+   * hacia que el maniquin apareciera ya con zoom en una parte que el
+   * usuario no habia pedido.
+   */
+  bodyZone?: BodyZone;
   silhouette: BodySilhouette;
   placement: Placement;
   cameraSnapshotUrl?: string;

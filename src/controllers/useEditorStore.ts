@@ -44,7 +44,8 @@ function initialProposal(): TattooProposal {
     // TODO: sustituir por el id del usuario autenticado.
     userId: 'current-user',
     designId: '',
-    bodyZone: 'forearm',
+    // Sin zona: el maniquin se abre entero y la elige el usuario.
+    bodyZone: undefined,
     silhouette: 'masculine',
     placement: defaultPlacement(),
     status: 'draft',

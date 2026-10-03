@@ -10,7 +10,8 @@ export interface BodyModelViewerProps {
   modelUrl: string;
   /** Boceto a proyectar sobre la piel, o null si todavia no hay. */
   textureUrl: string | null;
-  zone: BodyZone;
+  /** Zona enfocada, o undefined para ver el cuerpo entero. */
+  zone?: BodyZone;
   /** Tamaño relativo del tatuaje (el mismo deslizador de la hoja). */
   size: number;
   rotationDegrees: number;
@@ -57,7 +58,7 @@ export function BodyModelViewer({
         modelUrl,
         textureUrl,
         anchors: JSON.stringify(ZONE_ANCHORS),
-        zone,
+        zone: zone ?? null,
         background: '#131015',
       }),
     // `zone` solo se usa como valor inicial; despues manda setZone.
@@ -69,7 +70,7 @@ export function BodyModelViewer({
     webRef.current?.injectJavaScript(`window.bodyModel && ${expression}; true;`);
   };
 
-  useEffect(() => send(`window.bodyModel.setZone(${JSON.stringify(zone)})`), [zone]);
+  useEffect(() => send(`window.bodyModel.setZone(${JSON.stringify(zone ?? null)})`), [zone]);
   useEffect(() => send(`window.bodyModel.setSize(${size})`), [size]);
   useEffect(() => send(`window.bodyModel.setRotation(${rotationDegrees})`), [rotationDegrees]);
   useEffect(() => send(`window.bodyModel.setOpacity(${opacity})`), [opacity]);

@@ -9,7 +9,7 @@ import { artistRepository } from '../../core/services';
 import { useAppointmentStore } from '../../controllers/useAppointmentStore';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
-import { BODY_ZONE_LABELS } from '../../models/bodyZone';
+import { bodyZoneLabel } from '../../models/bodyZone';
 import { type as typo, useTheme } from '../../theme';
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -89,7 +89,7 @@ export default function AppointmentScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>Tu propuesta</Text>
           <Text style={[typo.caption, { color: colors.textMuted }]}>
-            {BODY_ZONE_LABELS[proposal.bodyZone]} · {Math.round(proposal.placement.scale * 100)} % · con {artistName}
+            {bodyZoneLabel(proposal.bodyZone)} · {Math.round(proposal.placement.scale * 100)} % · con {artistName}
           </Text>
         </View>
       </View>
