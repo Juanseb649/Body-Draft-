@@ -36,12 +36,53 @@ export function bodyModelHtml({
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: ${background}; }
       canvas { display: block; touch-action: none; }
+
+      /* Barra de recorrido. Encima del canvas siempre hay fondo oscuro
+         en los dos temas de la app, asi que va en blanco translucido. */
+      #scrollbar {
+        position: fixed;
+        top: 12%;
+        bottom: 12%;
+        right: 10px;
+        width: 34px;
+        display: flex;
+        justify-content: center;
+        touch-action: none;
+        opacity: 0;
+        transition: opacity 220ms ease;
+        pointer-events: none;
+      }
+      #scrollbar.visible { opacity: 1; pointer-events: auto; }
+      #track {
+        width: 4px;
+        height: 100%;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.18);
+      }
+      #thumb {
+        position: absolute;
+        width: 34px;
+        height: 56px;
+        margin-top: -28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #thumb::before {
+        content: '';
+        width: 8px;
+        height: 44px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.85);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      }
     </style>
     <script type="importmap">
       { "imports": { "three": "${CDN}/build/three.module.js", "three/addons/": "${CDN}/examples/jsm/" } }
     </script>
   </head>
   <body>
+    <div id="scrollbar"><div id="track"></div><div id="thumb"></div></div>
     <script type="module">
       import * as THREE from 'three';
       import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -140,12 +181,21 @@ export function bodyModelHtml({
       }
 
       /** Encuadra el maniquin entero, que es como se abre la pantalla. */
+      /** Caja del maniquin, para encuadrarlo y para limitar el recorrido. */
+      let bounds = null;
+
       function frameWholeBody(instant) {
         if (!body) return;
-        const box = new THREE.Box3().setFromObject(body);
-        const center = box.getCenter(new THREE.Vector3());
-        const height = box.max.y - box.min.y;
-        flyTo(center, new THREE.Vector3(center.x, center.y, height * 1.25), instant);
+        const center = bounds.getCenter(new THREE.Vector3());
+        const height = bounds.max.y - bounds.min.y;
+
+        // La distancia sale de la trigonometria del campo de vision, no
+        // de un multiplicador a ojo. Con el anterior (alto x 1.25) solo
+        // entraba el 79% del cuerpo: se veia recortado, y parecia que la
+        // pantalla abria con una zona ya enfocada.
+        const fov = (camera.fov * Math.PI) / 180;
+        const distance = (height / 2 / Math.tan(fov / 2)) * 1.15;
+        flyTo(center, new THREE.Vector3(center.x, center.y, distance), instant);
       }
 
       function placeDecal() {
@@ -233,6 +283,10 @@ export function bodyModelHtml({
           body = gltf.scene.getObjectByProperty('isMesh', true);
           scene.add(gltf.scene);
           gltf.scene.updateMatrixWorld(true);
+          // Se mide una sola vez, nada mas cargar: la barra de recorrido
+          // la necesita aunque se entre con una zona ya enfocada y no
+          // llegue a encuadrarse el cuerpo entero.
+          bounds = new THREE.Box3().setFromObject(body);
           loadTexture(() => {
             // Sin zona elegida se ve el cuerpo entero: preseleccionar una
             // abria la pantalla con zoom en un sitio que nadie pidio.
@@ -284,6 +338,76 @@ export function bodyModelHtml({
         setCutout(value) { current.cutout = value; texture = buildTexture(); placeDecal(); },
       };
 
+      // --- barra de recorrido ----------------------------------------
+      // Recorrer el cuerpo con dos dedos ya funcionaba, pero a ciegas: no
+      // habia nada que dijera por donde ibas ni cuanto quedaba. La barra
+      // aparece en cuanto se detecta el gesto y se esconde sola.
+      const scrollbar = document.getElementById('scrollbar');
+      const thumb = document.getElementById('thumb');
+      let hideTimer = null;
+
+      function showScrollbar() {
+        scrollbar.classList.add('visible');
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(function () { scrollbar.classList.remove('visible'); }, 1400);
+      }
+
+      /** Altura a la que se esta mirando, de 0 (pies) a 1 (cabeza). */
+      function scrollProgress() {
+        if (!bounds) return 0.5;
+        const span = (bounds.max.y - bounds.min.y) || 1;
+        return Math.min(1, Math.max(0, (controls.target.y - bounds.min.y) / span));
+      }
+
+      function syncThumb() {
+        // Se dibuja al reves que el eje del mundo: arriba es la cabeza.
+        thumb.style.top = ((1 - scrollProgress()) * 100) + '%';
+      }
+
+      /** Lleva la mirada a esa altura del cuerpo, sin girar la camara. */
+      function scrollTo(progress) {
+        if (!bounds) return;
+        const span = bounds.max.y - bounds.min.y;
+        const y = bounds.min.y + Math.min(1, Math.max(0, progress)) * span;
+        const delta = y - controls.target.y;
+        controls.target.y += delta;
+        camera.position.y += delta;
+        controls.update();
+        syncThumb();
+      }
+
+      let draggingThumb = false;
+      function thumbProgressFrom(clientY) {
+        const rect = scrollbar.getBoundingClientRect();
+        return 1 - (clientY - rect.top) / rect.height;
+      }
+
+      scrollbar.addEventListener('pointerdown', function (e) {
+        draggingThumb = true;
+        scrollbar.setPointerCapture(e.pointerId);
+        showScrollbar();
+        scrollTo(thumbProgressFrom(e.clientY));
+        e.stopPropagation();
+      });
+      scrollbar.addEventListener('pointermove', function (e) {
+        if (!draggingThumb) return;
+        showScrollbar();
+        scrollTo(thumbProgressFrom(e.clientY));
+        e.stopPropagation();
+      });
+      function releaseThumb(e) {
+        draggingThumb = false;
+        e.stopPropagation();
+      }
+      scrollbar.addEventListener('pointerup', releaseThumb);
+      scrollbar.addEventListener('pointercancel', releaseThumb);
+
+      // Recorrer con dos dedos tambien la enseña y la mantiene al dia.
+      controls.addEventListener('change', function () {
+        syncThumb();
+        if (active.size >= 2) showScrollbar();
+      });
+
       // Pellizcar redimensiona el TATUAJE, no la camara (por eso
       // OrbitControls tiene el zoom desactivado). Se calcula a mano
       // porque hacen falta los dos punteros a la vez.
@@ -292,39 +416,78 @@ export function bodyModelHtml({
       const active = new Map();
       let pinchStart = 0;
       let pinchSize = 1;
+      let pinchCameraDistance = 0;
+      let pinchMode = null;
 
       const pinchDistance = () => {
         const [a, b] = [...active.values()];
         return Math.hypot(a.x - b.x, a.y - b.y);
       };
 
+      /** Coordenadas normalizadas (-1..1) de un punto de la pantalla. */
+      const toNdc = (x, y) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        return new THREE.Vector2(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+      };
+
+      /**
+       * Que se esta pellizcando. Si los dedos estan sobre el tatuaje se
+       * cambia SU tamaño; si estan sobre el cuerpo, se acerca o aleja
+       * la camara. Asi los dos gestos conviven sin un modo escondido:
+       * pellizcas lo que quieres cambiar.
+       */
+      function pinchTarget() {
+        if (!decal) return 'camera';
+        const [a, b] = [...active.values()];
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(toNdc((a.x + b.x) / 2, (a.y + b.y) / 2), camera);
+        return ray.intersectObject(decal, true).length ? 'decal' : 'camera';
+      }
+
       renderer.domElement.addEventListener('pointerdown', (e) => {
         active.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (active.size === 2) {
           pinchStart = pinchDistance();
           pinchSize = current.size;
+          pinchCameraDistance = camera.position.distanceTo(controls.target);
+          pinchMode = pinchTarget();
+          showScrollbar();
         }
       });
 
       renderer.domElement.addEventListener('pointermove', (e) => {
         if (!active.has(e.pointerId)) return;
         active.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (active.size !== 2 || !pinchStart || !decal) return;
+        if (active.size !== 2 || !pinchStart) return;
+        const ratio = pinchDistance() / pinchStart;
 
-        const next = Math.min(MAX_SIZE, Math.max(MIN_SIZE, (pinchSize * pinchDistance()) / pinchStart));
-        if (Math.abs(next - current.size) < 0.01) return;
-        current.size = next;
-        placeDecal();
+        if (pinchMode === 'decal' && decal) {
+          const next = Math.min(MAX_SIZE, Math.max(MIN_SIZE, pinchSize * ratio));
+          if (Math.abs(next - current.size) < 0.01) return;
+          current.size = next;
+          placeDecal();
+          return;
+        }
+
+        // Acercar o alejar: la camara se mueve sobre la linea que la
+        // une con lo que esta mirando, asi no cambia el encuadre.
+        const distance = Math.min(controls.maxDistance, Math.max(controls.minDistance, pinchCameraDistance / ratio));
+        const direction = camera.position.clone().sub(controls.target).normalize();
+        camera.position.copy(controls.target).addScaledVector(direction, distance);
+        controls.update();
       });
 
       const endPointer = (e) => {
-        if (active.size === 2 && active.has(e.pointerId)) {
+        if (pinchMode === 'decal' && active.size === 2 && active.has(e.pointerId)) {
           // Al soltar se avisa a la app para que el deslizador de
           // tamaño no se quede marcando un valor que ya no es.
           post({ type: 'size', value: current.size });
         }
         active.delete(e.pointerId);
-        if (active.size < 2) pinchStart = 0;
+        if (active.size < 2) {
+          pinchStart = 0;
+          pinchMode = null;
+        }
       };
       renderer.domElement.addEventListener('pointerup', endPointer);
       renderer.domElement.addEventListener('pointercancel', endPointer);
@@ -384,7 +547,10 @@ export function bodyModelHtml({
           const e = flight.t < 0.5 ? 4 * flight.t ** 3 : 1 - Math.pow(-2 * flight.t + 2, 3) / 2;
           camera.position.lerpVectors(flight.fromPos, flight.toPos, e);
           controls.target.lerpVectors(flight.fromTarget, flight.toTarget, e);
-          if (flight.t >= 1) flight.active = false;
+          if (flight.t >= 1) {
+            flight.active = false;
+            syncThumb();
+          }
         }
         controls.update();
         renderer.render(scene, camera);
