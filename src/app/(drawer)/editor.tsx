@@ -183,11 +183,19 @@ export default function TattooEditorScreen() {
     }
 
     if (model.uri) {
+      // Sin DesignOverlay encima: aqui el tatuaje va proyectado
+      // sobre la malla, dentro de la escena 3D, para que siga la
+      // curvatura del cuerpo.
       return (
-        <View style={{ flex: 1 }}>
-          <BodyModelViewer modelUrl={model.uri} alt={`Maniquí 3D — ${BODY_ZONE_LABELS[proposal.bodyZone]}`} />
-          <DesignOverlay design={design} />
-        </View>
+        <BodyModelViewer
+          modelUrl={model.uri}
+          textureUrl={design ? displayImageUrl(design) : null}
+          zone={proposal.bodyZone}
+          size={proposal.placement.scale}
+          rotationDegrees={proposal.placement.rotationDegrees}
+          opacity={proposal.placement.opacity}
+          cutout={proposal.hideBackground}
+        />
       );
     }
 
@@ -308,7 +316,9 @@ export default function TattooEditorScreen() {
         {design && !proposal.cameraSnapshotUrl && (
           <>
             <Text style={styles.hint}>
-              Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.
+              {mode === 'mannequin'
+                ? 'Gira el maniquí con el dedo. Elige una zona abajo y la app la enfoca y coloca ahí el tatuaje.'
+                : 'Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.'}
             </Text>
 
             <Text style={styles.label}>Fondo del boceto</Text>

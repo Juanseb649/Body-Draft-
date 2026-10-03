@@ -1,83 +1,99 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { WebView } from 'react-native-webview';
 
-/** Escapa lo que va dentro de un atributo HTML. */
-function attr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+import type { BodyZone } from '../../models/bodyZone';
+import { ZONE_ANCHORS } from '../../models/bodyZoneAnchors';
+import { bodyModelHtml } from './bodyModelScene';
+
+export interface BodyModelViewerProps {
+  /** Data URI del .glb (ver bodyModelService). */
+  modelUrl: string;
+  /** Boceto a proyectar sobre la piel, o null si todavia no hay. */
+  textureUrl: string | null;
+  zone: BodyZone;
+  /** Tamaño relativo del tatuaje (el mismo deslizador de la hoja). */
+  size: number;
+  rotationDegrees: number;
+  opacity: number;
+  /** Si el papel del boceto se vuelve transparente. */
+  cutout: boolean;
+  onError?: (message: string) => void;
 }
 
 /**
- * Organismo: maniquin 3D rotable dentro de un WebView, usando el web
- * component `<model-viewer>` de Google. Es el camino mas simple para
- * mostrar un .glb rotable dentro de Expo Go sin codigo nativo
- * adicional (`react-native-webview` esta incluido en Expo Go) —
- * ver services/bodyModelService.ts.
+ * Maniquin 3D con el tatuaje proyectado SOBRE la malla.
  *
- * `modelUrl` es un data URI con el .glb entero dentro, y el maniqui
- * femenino son ~1,2 MB en base64. Va interpolado en el HTML a
- * proposito, NO por `injectJavaScript`: en Android eso acaba en
- * `WebView.evaluateJavascript`, que con payloads de ese tamano falla
- * de forma silenciosa (el modelo simplemente no aparece). El `source`
- * del WebView no tiene ese limite.
+ * Antes el boceto era una imagen plana puesta encima del visor: se
+ * movia y se giraba, pero no sabia que debajo habia un brazo, asi que
+ * no se curvaba. Ahora se proyecta con DecalGeometry contra la
+ * geometria real, de modo que envuelve el miembro que toque.
+ *
+ * El reparto de responsabilidades importa:
+ *
+ * - El modelo y el boceto, que son de cientos de KB, viajan DENTRO del
+ *   HTML. Pasarlos por `injectJavaScript` fallaria en silencio en
+ *   Android, que limita el tamaño de lo que se evalua.
+ * - La zona, el tamaño, el giro y la opacidad son datos minusculos y si
+ *   van por `injectJavaScript`, para no recargar la escena —ni volver a
+ *   parsear el .glb— cada vez que se mueve un deslizador.
  */
-export function BodyModelViewer({ modelUrl, alt }: { modelUrl: string; alt: string }) {
-  // Cambiar de silueta cambia el html y el WebView recarga solo. Eso
-  // vuelve a pedir model-viewer a unpkg, pero sale de la cache HTTP
-  // del propio WebView, no de la red.
+export function BodyModelViewer({
+  modelUrl,
+  textureUrl,
+  zone,
+  size,
+  rotationDegrees,
+  opacity,
+  cutout,
+  onError,
+}: BodyModelViewerProps) {
+  const webRef = useRef<WebView>(null);
+
+  // Solo se reconstruye cuando cambia algo pesado: el maniquin o el
+  // boceto. Lo demas se manda como orden a la escena ya montada.
   const html = useMemo(
-    () => `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-        <!-- Version fijada a proposito: sin ella unpkg sirve la ultima
-             publicada, y una major nueva de model-viewer puede romper
-             el visor sin que nadie haya tocado el repo. -->
-        <script type="module" src="https://unpkg.com/@google/model-viewer@4.3.1/dist/model-viewer.min.js"></script>
-        <style>
-          html, body { margin: 0; height: 100%; background: #131015; overflow: hidden; }
-          model-viewer {
-            width: 100%;
-            height: 100%;
-            --progress-bar-color: #D42A40;
-            --progress-mask: transparent;
-          }
-        </style>
-      </head>
-      <body>
-        <model-viewer
-          src="${attr(modelUrl)}"
-          alt="${attr(alt)}"
-          auto-rotate
-          auto-rotate-delay="1200"
-          rotation-per-second="18deg"
-          camera-controls
-          touch-action="pan-y"
-          interaction-prompt="none"
-          environment-image="neutral"
-          exposure="1.05"
-          shadow-intensity="0.9"
-          shadow-softness="0.9"
-          camera-orbit="12deg 80deg 105%"
-          min-field-of-view="18deg"
-          max-field-of-view="42deg"
-        ></model-viewer>
-      </body>
-    </html>
-  `,
-    [modelUrl, alt]
+    () =>
+      bodyModelHtml({
+        modelUrl,
+        textureUrl,
+        anchors: JSON.stringify(ZONE_ANCHORS),
+        zone,
+        background: '#131015',
+      }),
+    // `zone` solo se usa como valor inicial; despues manda setZone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [modelUrl, textureUrl]
   );
+
+  const send = (expression: string) => {
+    webRef.current?.injectJavaScript(`window.bodyModel && ${expression}; true;`);
+  };
+
+  useEffect(() => send(`window.bodyModel.setZone(${JSON.stringify(zone)})`), [zone]);
+  useEffect(() => send(`window.bodyModel.setSize(${size})`), [size]);
+  useEffect(() => send(`window.bodyModel.setRotation(${rotationDegrees})`), [rotationDegrees]);
+  useEffect(() => send(`window.bodyModel.setOpacity(${opacity})`), [opacity]);
+  useEffect(() => send(`window.bodyModel.setCutout(${cutout})`), [cutout]);
 
   return (
     <WebView
+      ref={webRef}
       originWhitelist={['*']}
       source={{ html }}
       style={{ flex: 1, backgroundColor: '#131015' }}
       javaScriptEnabled
       domStorageEnabled
-      // El maniqui se gira con el dedo: el WebView no debe hacer scroll.
+      // El maniquin se gira con el dedo: el WebView no debe hacer scroll.
       scrollEnabled={false}
       bounces={false}
+      onMessage={(event) => {
+        try {
+          const message = JSON.parse(event.nativeEvent.data) as { type: string; message?: string };
+          if (message.type === 'error' && message.message) onError?.(message.message);
+        } catch {
+          // Mensaje que no es nuestro; se ignora.
+        }
+      }}
     />
   );
 }
