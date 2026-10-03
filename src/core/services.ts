@@ -5,7 +5,7 @@ import type { AIService } from '../services/aiService';
 import type { AuthService } from '../services/authService';
 import { SupabaseAuthService } from '../services/authService';
 import { BodyModelServiceImpl } from '../services/bodyModelService';
-import { GeminiAIService } from '../services/geminiAiService';
+import { createAiService } from '../services/aiProvider';
 import type { ImageUploadService } from '../services/imageUploadService';
 import { SupabaseImageUploadService } from '../services/imageUploadService';
 import { SqliteStorageService } from '../services/sqliteStorageService';
@@ -27,10 +27,19 @@ import type { StorageService } from '../services/storageService';
 
 export type { ArtistFeedItem, NewArtistWork } from '../data/designRepository';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
+/**
+ * El proveedor de IA no esta fijado en el codigo: se elige por entorno
+ * (ver services/aiProvider.ts). Con EXPO_PUBLIC_AI_PROVIDER se fuerza
+ * uno; sin el, se usa el primero que tenga clave.
+ */
+const aiConfig = {
+  provider: process.env.EXPO_PUBLIC_AI_PROVIDER,
+  openAiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
+  geminiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
+};
 
 export const storageService: StorageService = new SqliteStorageService();
-export const aiService: AIService = new GeminiAIService(GEMINI_API_KEY);
+export const aiService: AIService = createAiService(aiConfig);
 export const bodyModelService = new BodyModelServiceImpl();
 export const authService: AuthService = new SupabaseAuthService();
 export const imageUploadService: ImageUploadService = new SupabaseImageUploadService();

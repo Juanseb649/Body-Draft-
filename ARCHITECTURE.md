@@ -57,7 +57,7 @@ convencion oficial y recomendada por Expo (ver `AGENTS.md` del proyecto).
 
 **Por que un repositorio entre Controller y Servicios:** el Controller no
 deberia saber si un diseno viene de SQLite local o de un backend remoto, ni
-si "generar con IA" implica una o varias llamadas a Gemini. El repositorio
+si "generar con IA" implica una o varias llamadas al proveedor. El repositorio
 absorbe esa decision (ver `data/designRepository.ts`).
 
 ---
@@ -109,7 +109,7 @@ src/
 
   services/                     integraciones externas (puerto + adaptador)
     authService.ts / supabaseClient.ts  (backend de autenticacion)
-    aiService.ts / geminiAiService.ts
+    aiService.ts (puerto) / aiProvider.ts (elige) / openAiService.ts / geminiAiService.ts
     storageService.ts / inMemoryStorageService.ts
     bodyModelService.ts
 
@@ -357,11 +357,36 @@ en Ajustes re-renderice con la paleta correcta en toda la app.
 
 ---
 
-## 8. IA (Gemini)
+## 8. IA (sin proveedor fijo)
 
-`AIService` (`services/aiService.ts`) es la unica puerta de entrada a IA;
-`GeminiAIService` es su implementacion concreta, sobre el SDK
-`@google/generative-ai`. Responsabilidades cubiertas por la interfaz:
+`AIService` (`services/aiService.ts`) es la unica puerta de entrada a IA
+y NO esta atada a ningun proveedor: describe lo que la app necesita, y
+cada proveedor lo implementa como pueda. Hoy hay dos,
+`OpenAiService` y `GeminiAIService`, y añadir un tercero es escribir
+una clase mas y registrarla en `services/aiProvider.ts`, sin tocar una
+sola pantalla ni Controller.
+
+Cual se usa lo decide el entorno:
+
+1. `EXPO_PUBLIC_AI_PROVIDER` (`openai` | `gemini`), si esta puesto.
+2. Si no, el primero que tenga clave.
+
+Sin ninguna clave la app arranca igual y es `UnconfiguredAiService`
+quien responde, fallando con un mensaje que dice que variable falta.
+Esto es a proposito: dejar pasar una clave vacia convierte un error de
+configuracion en un 401 del servidor mucho mas tarde y mucho mas
+dificil de leer.
+
+Las dos operaciones que mas se usan —recortar un fondo y componer un
+tatuaje sobre una foto— son EDICIONES de imagenes que ya existen, no
+generacion desde cero, y cada API las expresa distinto: Gemini las manda
+como `inlineData` en un JSON, y OpenAI como campos `image[]` repetidos
+de un `multipart/form-data`. Eso obliga a un detalle: el `FormData` de
+React Native solo adjunta archivos reales, asi que un diseño que vive
+como data URI se vuelca antes a un archivo de cache
+(`services/imageFileCache.ts`).
+
+Responsabilidades cubiertas por la interfaz:
 
 | Metodo                     | Uso                                                   |
 | --------------------------- | ------------------------------------------------------ |
@@ -370,11 +395,12 @@ en Ajustes re-renderice con la paleta correcta en toda la app.
 | `generateVariations`        | Variaciones de un diseno existente                     |
 | `adaptToStyle`               | Adaptar una referencia a un estilo distinto             |
 | `removeBackground`          | Dejar solo el trazo, listo para superponerse            |
+| `composeOnPhoto`            | Aplicar el tatuaje sobre la piel de una foto real       |
 
-`useDesignStore` es el unico Controller que llama `AIService` (via
-`designRepository`); ningun otro Controller ni ninguna View habla con
-Gemini directamente. La API key se lee de `process.env.EXPO_PUBLIC_GEMINI_API_KEY`
-(variable de entorno publica de Expo — ver seccion 11).
+Ningun Controller ni ninguna View habla con un proveedor directamente:
+pasan por `aiService`, que `core/services.ts` construye una sola vez.
+Las claves se leen de variables `EXPO_PUBLIC_` (ver seccion 11 y
+`.env.example`).
 
 ---
 
@@ -407,7 +433,7 @@ catalogo de un tatuador para mostrarlo en su perfil/portafolio.
 
 `core/services.ts` centraliza que implementacion concreta usa cada
 interfaz (`AIService`, `StorageService`, `BodyModelService`), de modo que
-sustituir Gemini por otro proveedor, o `SqliteStorageService` por otra
+sustituir un proveedor de IA por otro, o `SqliteStorageService` por otra
 cosa, no toca Controllers ni Views. `ArtistRepository` y
 `AppointmentRepository` no implementan una interfaz compartida con
 `StorageService` a proposito: hablan con Supabase directamente porque su
@@ -418,7 +444,7 @@ dato es compartido entre cuentas, no local a una.
 ## 11. Variables de entorno y Expo Go
 
 - Las variables que el bundle de JS necesita en tiempo de ejecucion (como
-  las API keys de Gemini y Supabase) deben llevar el prefijo `EXPO_PUBLIC_`
+  las API keys de IA y de Supabase) deben llevar el prefijo `EXPO_PUBLIC_`
   (`.env` en la raiz: `EXPO_PUBLIC_GEMINI_API_KEY`,
   `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`) — es el
   mecanismo que Expo inlinea automaticamente en el bundle; sin ese
