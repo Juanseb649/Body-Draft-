@@ -3,14 +3,15 @@ import { create } from 'zustand';
 
 import { designRepository } from '../core/services';
 import type { BodySilhouette, BodyZone } from '../models/bodyZone';
-import { defaultPlacement } from '../models/placement';
+import { defaultPlacement, type Placement } from '../models/placement';
 import type { TattooProposal } from '../models/tattooProposal';
 
 interface EditorState extends TattooProposal {
   selectDesign: (designId: string) => void;
   setZone: (zone: BodyZone) => void;
   setSilhouette: (silhouette: BodySilhouette) => void;
-  move: (dx: number, dy: number) => void;
+  /** Aplica de golpe lo que dejo un gesto (mover + girar + escalar). */
+  setPlacement: (patch: Partial<Placement>) => void;
   rotate: (degrees: number) => void;
   scale: (scale: number) => void;
   setOpacity: (opacity: number) => void;
@@ -46,10 +47,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setZone: (bodyZone) => set({ bodyZone }),
   setSilhouette: (silhouette) => set({ silhouette }),
 
-  move: (dx, dy) =>
-    set((s) => ({
-      placement: { ...s.placement, offsetX: s.placement.offsetX + dx, offsetY: s.placement.offsetY + dy },
-    })),
+  // Un solo `set` para todo el gesto: mover, girar y escalar llegan
+  // juntos desde DesignOverlay al soltar el dedo, no frame a frame.
+  setPlacement: (patch) => set((s) => ({ placement: { ...s.placement, ...patch } })),
 
   rotate: (degrees) => set((s) => ({ placement: { ...s.placement, rotationDegrees: degrees } })),
 

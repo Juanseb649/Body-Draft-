@@ -58,9 +58,11 @@ export default function TattooEditorScreen() {
   const { colors } = useTheme();
   const { permission, requestPermission, cameraRef, capture } = useCameraController();
   const ownerId = useAuthStore((s) => s.user?.id) ?? 'current-user';
-  const { designs, loadDesigns, uploadDesign } = useDesignStore();
+  const { designs, loadDesigns, uploadDesign, removeBackground, restoreBackground, isProcessingImage, error } =
+    useDesignStore();
   const proposal = useEditorStore((s) => s);
   const design = designs.find((d) => d.id === proposal.designId);
+  const hasCutout = Boolean(design?.processedImageUrl);
 
   const seenIntro = useSettingsStore((s) => s.onboarding.seenCreateIntro);
   const markIntroSeen = useSettingsStore((s) => s.markCreateIntroSeen);
@@ -223,6 +225,23 @@ export default function TattooEditorScreen() {
           </Pressable>
         </View>
 
+        {design && (
+          <>
+            <Text style={styles.hint}>
+              Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.
+            </Text>
+
+            <AppButton
+              label={hasCutout ? 'Restaurar fondo' : 'Quitar el fondo'}
+              variant="secondary"
+              size="M"
+              isLoading={isProcessingImage}
+              onPress={() => (hasCutout ? restoreBackground(design.id) : removeBackground(design.id))}
+            />
+            {error && <Text style={styles.error}>{error}</Text>}
+          </>
+        )}
+
         {mode === 'mannequin' && (
           <>
             <Text style={styles.label}>Cuerpo</Text>
@@ -349,6 +368,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       justifyContent: 'center',
     },
     label: { ...typo.label, color: colors.textMuted, marginTop: 8 },
+    hint: { ...typo.caption, color: colors.textMuted },
+    error: { ...typo.caption, color: colors.danger },
     zoneRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
     sliderLabel: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   });

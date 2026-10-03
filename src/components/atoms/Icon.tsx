@@ -8,7 +8,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
  * mismo peso, y mezclar un set de iconos de terceros rompe esa
  * coherencia. Todos usan un viewBox 24x24 y heredan el color.
  */
-export type IconName = 'camera' | 'body' | 'image' | 'info' | 'close' | 'shutter';
+export type IconName = 'camera' | 'body' | 'image' | 'info' | 'close' | 'shutter' | 'move' | 'cutout';
 
 export function Icon({ name, size = 24, color, strokeWidth = 1.8 }: {
   name: IconName;
@@ -60,6 +60,23 @@ export function Icon({ name, size = 24, color, strokeWidth = 1.8 }: {
       )}
 
       {name === 'close' && <Path {...common} d="M6 6l12 12M18 6 6 18" />}
+
+      {/* Flechas a los cuatro lados: mover y redimensionar. */}
+      {name === 'move' && (
+        <>
+          <Path {...common} d="M12 3.2v17.6M3.2 12h17.6" />
+          <Path {...common} d="m9.2 6 2.8-2.8L14.8 6M9.2 18l2.8 2.8L14.8 18M6 9.2 3.2 12 6 14.8M18 9.2l2.8 2.8-2.8 2.8" />
+        </>
+      )}
+
+      {/* Recorte: la silueta separada de su fondo a cuadros. */}
+      {name === 'cutout' && (
+        <>
+          <Path {...common} strokeDasharray="2.6 2.4" d="M3.6 3.6h16.8v16.8H3.6z" />
+          <Path {...common} d="M8.4 16.2c0-3.2 1.6-5.4 3.6-5.4s3.6 2.2 3.6 5.4" />
+          <Circle {...common} cx="12" cy="8.2" r="2.1" />
+        </>
+      )}
 
       {name === 'shutter' && (
         <>

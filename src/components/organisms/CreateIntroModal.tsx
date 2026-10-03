@@ -28,6 +28,16 @@ const STEPS: Step[] = [
     body: 'Este botón abre tus fotos para elegir el diseño que quieres probarte. Puede ser un boceto del tatuador, una referencia que guardaste o algo que hayas generado en "Diseña".',
   },
   {
+    icon: 'move',
+    title: 'Colocarlo',
+    body: 'Arrastra el boceto con un dedo. Con dos dedos lo giras y cambias su tamaño a la vez, como con una foto. Si lo pierdes de vista, un doble toque lo devuelve al centro.',
+  },
+  {
+    icon: 'cutout',
+    title: 'Quitar el fondo',
+    body: 'Un boceto fotografiado trae el papel y su sombra, y pegado sobre la piel se ve como un recorte rectangular. "Quitar el fondo" deja solo la tinta. Guarda las dos versiones, así que puedes volver a la original cuando quieras.',
+  },
+  {
     icon: 'body',
     title: 'Sobre un maniquí',
     body: 'Si prefieres no usar la cámara, el maniquí 3D hace lo mismo: gíralo con el dedo y coloca el boceto en cualquier zona del cuerpo.',

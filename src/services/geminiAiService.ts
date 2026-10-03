@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import { File } from 'expo-file-system';
 
 import type { TattooDesign } from '../models/tattooDesign';
 import type { AIService } from './aiService';
@@ -39,6 +40,28 @@ async function describeApiError(response: Response): Promise<string> {
     return `Gemini no encontró el modelo "${IMAGE_MODEL}" para esta key. (${detail})`;
   }
   return `Gemini (${response.status}): ${detail}`;
+}
+
+/** Extensiones que no coinciden con su tipo MIME por simple traduccion. */
+const MIME_BY_EXTENSION: Record<string, string> = { jpg: 'image/jpeg', heic: 'image/heic' };
+
+/**
+ * Deja una imagen lista para viajar dentro del JSON de la peticion.
+ *
+ * Gemini no descarga URLs: la imagen va en base64 en el cuerpo. Un
+ * boceto recien elegido del carrete es un `file://` del telefono, y uno
+ * ya procesado antes puede ser un data URI; se contemplan los dos.
+ */
+async function readAsInlineData(uri: string): Promise<{ mimeType: string; data: string }> {
+  const dataUri = uri.match(/^data:([^;]+);base64,(.*)$/s);
+  if (dataUri) return { mimeType: dataUri[1], data: dataUri[2] };
+
+  const file = new File(uri);
+  const extension = (file.extension || '.jpg').replace('.', '').toLowerCase();
+  return {
+    mimeType: file.type || MIME_BY_EXTENSION[extension] || `image/${extension}`,
+    data: await file.base64(),
+  };
 }
 
 /**
@@ -114,10 +137,57 @@ export class GeminiAIService implements AIService {
     return this.generateFromDescription(design.description ?? design.title, style);
   }
 
-  async removeBackground(_imageUri: string): Promise<string> {
-    throw new Error(
-      'Integrar un modelo de segmentacion (Gemini vision o un servicio ' +
-        'dedicado) y devolver la URL de la imagen sin fondo.',
-    );
+  /**
+   * Devuelve el boceto recortado sobre fondo transparente, listo para
+   * superponerse sobre la piel o el maniquin.
+   *
+   * Un boceto fotografiado trae el papel, la mesa y su sombra; pegado
+   * tal cual sobre un brazo se ve un recorte rectangular, no un
+   * tatuaje. Aqui se le pide al mismo modelo de imagen que lo aisle.
+   *
+   * El resultado es un data URI y NO se sube a Storage: es una vista
+   * previa de trabajo del usuario, no algo que vayan a ver otras
+   * cuentas (a diferencia del portafolio, ver ImageUploadService).
+   */
+  async removeBackground(imageUri: string): Promise<string> {
+    const { mimeType, data } = await readAsInlineData(imageUri);
+
+    const response = await fetch(`${API_BASE}/${IMAGE_MODEL}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inlineData: { mimeType, data } },
+              {
+                text:
+                  'Recorta este diseño de tatuaje dejando SOLO la tinta sobre fondo ' +
+                  'completamente transparente. Quita el papel, la mesa, las sombras y ' +
+                  'cualquier reflejo. No redibujes, no añadas elementos y no cambies ' +
+                  'el trazo ni las proporciones: devuelve el mismo diseño, recortado. ' +
+                  'Devuelve un PNG con canal alfa.',
+              },
+            ],
+          },
+        ],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await describeApiError(response));
+    }
+
+    const body = (await response.json()) as GeminiGenerateContentResponse;
+    const parts = body.candidates?.[0]?.content?.parts ?? [];
+    const imagePart = parts.find((p) => p.inlineData);
+
+    if (!imagePart?.inlineData) {
+      const text = parts.find((p) => p.text)?.text;
+      throw new Error(text ? `Gemini no devolvió la imagen recortada: ${text}` : 'Gemini no devolvió ninguna imagen.');
+    }
+
+    return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
   }
 }

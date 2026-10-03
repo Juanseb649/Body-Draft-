@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { designRepository, type ArtistFeedItem } from '../core/services';
+import { aiService, designRepository, type ArtistFeedItem } from '../core/services';
 import type { TattooDesign } from '../models/tattooDesign';
 
 interface DesignState {
@@ -14,6 +14,11 @@ interface DesignState {
   loadFeed: () => Promise<void>;
   generateWithAI: (prompt: string, style?: string) => Promise<TattooDesign | undefined>;
   uploadDesign: (design: TattooDesign) => Promise<void>;
+  /** Recorta el boceto sobre fondo transparente (ver AIService). */
+  removeBackground: (designId: string) => Promise<boolean>;
+  /** Vuelve a la imagen tal como se importo. */
+  restoreBackground: (designId: string) => Promise<void>;
+  isProcessingImage: boolean;
 }
 
 /**
@@ -67,5 +72,39 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   uploadDesign: async (design) => {
     await designRepository.saveDesign(design);
     set({ designs: [...get().designs, design] });
+  },
+
+  isProcessingImage: false,
+
+  removeBackground: async (designId) => {
+    const design = get().designs.find((d) => d.id === designId);
+    if (!design) return false;
+
+    set({ isProcessingImage: true, error: undefined });
+    try {
+      // Se guarda aparte, en `processedImageUrl`, y no se pisa
+      // `imageUrl`: asi se puede volver al original sin tener que pedir
+      // otra vez el recorte (y gastar cuota de la API).
+      const processedImageUrl = await aiService.removeBackground(design.imageUrl);
+      const updated = { ...design, processedImageUrl };
+      await designRepository.saveDesign(updated);
+      set({
+        designs: get().designs.map((d) => (d.id === designId ? updated : d)),
+        isProcessingImage: false,
+      });
+      return true;
+    } catch (e) {
+      set({ isProcessingImage: false, error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  },
+
+  restoreBackground: async (designId) => {
+    const design = get().designs.find((d) => d.id === designId);
+    if (!design?.processedImageUrl) return;
+
+    const updated = { ...design, processedImageUrl: undefined };
+    await designRepository.saveDesign(updated);
+    set({ designs: get().designs.map((d) => (d.id === designId ? updated : d)) });
   },
 }));
