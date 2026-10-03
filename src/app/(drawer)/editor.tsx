@@ -200,6 +200,7 @@ export default function TattooEditorScreen() {
           rotationDegrees={proposal.placement.rotationDegrees}
           opacity={proposal.placement.opacity}
           cutout={proposal.hideBackground}
+          onSizeChange={(scale) => proposal.setPlacement({ scale })}
         />
       );
     }
@@ -322,7 +323,7 @@ export default function TattooEditorScreen() {
           <>
             <Text style={styles.hint}>
               {mode === 'mannequin'
-                ? 'Gira el maniquí con el dedo y toca dónde quieres el tatuaje. Las zonas de abajo enfocan y colocan por ti.'
+                ? 'Un dedo gira el maniquí, dos lo recorren de arriba a abajo. Toca dónde quieres el tatuaje y pellizca para su tamaño.'
                 : 'Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.'}
             </Text>
 

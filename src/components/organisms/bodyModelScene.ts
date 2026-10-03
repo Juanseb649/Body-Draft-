@@ -75,9 +75,17 @@ export function bodyModelHtml({
       // Sin giro solo: antes daba vueltas sin que nadie lo tocara y no
       // se podia mirar una zona con calma.
       controls.autoRotate = false;
-      controls.enablePan = false;
       controls.minDistance = 0.15;
       controls.maxDistance = 4;
+
+      // Un dedo gira alrededor del cuerpo; dos dedos lo recorren de
+      // arriba a abajo. El pellizco NO se le deja a OrbitControls
+      // (seria acercar la camara): se usa para el tamaño del tatuaje,
+      // de ahi TOUCH.PAN en vez de DOLLY_PAN.
+      controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.PAN };
+      controls.enablePan = true;
+      controls.screenSpacePanning = true;
+      controls.enableZoom = false;
 
       let body = null;
       let decal = null;
@@ -132,14 +140,12 @@ export function bodyModelHtml({
       }
 
       /** Encuadra el maniquin entero, que es como se abre la pantalla. */
-      function frameWholeBody() {
+      function frameWholeBody(instant) {
         if (!body) return;
         const box = new THREE.Box3().setFromObject(body);
         const center = box.getCenter(new THREE.Vector3());
         const height = box.max.y - box.min.y;
-        controls.target.copy(center);
-        camera.position.set(center.x, center.y, height * 1.25);
-        controls.update();
+        flyTo(center, new THREE.Vector3(center.x, center.y, height * 1.25), instant);
       }
 
       function placeDecal() {
@@ -165,9 +171,17 @@ export function bodyModelHtml({
 
         const width = 0.16 * current.size;
         const aspect = rawImage ? rawImage.height / rawImage.width : 1;
+
         // La profundidad es cuanto "muerde" la proyeccion hacia dentro
-        // del cuerpo: generosa para que envuelva la curva del brazo.
-        const size = new THREE.Vector3(width, width * aspect, 0.3);
+        // del cuerpo, y es lo que causaba que el tatuaje apareciera
+        // DUPLICADO en sitios que nadie habia elegido: con 0.3 m la
+        // caja de proyeccion atravesaba el brazo entero y salia por
+        // detras, estampando una copia en la cara opuesta, y a veces
+        // alcanzaba el torso. Un tatuaje real tampoco da la vuelta al
+        // miembro, asi que basta con morder un poco mas que el propio
+        // tamaño del dibujo.
+        const depth = Math.max(0.03, width * 0.45);
+        const size = new THREE.Vector3(width, width * aspect, depth);
 
         const material = new THREE.MeshStandardMaterial({
           map: texture,
@@ -184,12 +198,33 @@ export function bodyModelHtml({
         scene.add(decal);
       }
 
-      function frameZone(zoneKey) {
+      /**
+       * Viaje de camara hacia un punto. Se interpola en el bucle de
+       * render en vez de saltar: un corte seco hace perder la
+       * referencia de donde estaba uno mirando.
+       */
+      const flight = { active: false, t: 0, duration: 700, fromPos: new THREE.Vector3(), toPos: new THREE.Vector3(), fromTarget: new THREE.Vector3(), toTarget: new THREE.Vector3() };
+
+      function flyTo(point, position, instant) {
+        if (instant) {
+          controls.target.copy(point);
+          camera.position.copy(position);
+          controls.update();
+          flight.active = false;
+          return;
+        }
+        flight.fromPos.copy(camera.position);
+        flight.fromTarget.copy(controls.target);
+        flight.toPos.copy(position);
+        flight.toTarget.copy(point);
+        flight.t = 0;
+        flight.active = true;
+      }
+
+      function frameZone(zoneKey, instant) {
         const hit = hitFor(zoneKey);
         if (!hit) return;
-        controls.target.copy(hit.point);
-        camera.position.copy(hit.point.clone().addScaledVector(hit.normal, hit.distance));
-        controls.update();
+        flyTo(hit.point, hit.point.clone().addScaledVector(hit.normal, hit.distance), instant);
       }
 
       new GLTFLoader().load(
@@ -201,8 +236,9 @@ export function bodyModelHtml({
           loadTexture(() => {
             // Sin zona elegida se ve el cuerpo entero: preseleccionar una
             // abria la pantalla con zoom en un sitio que nadie pidio.
-            if (current.zone) frameZone(current.zone);
-            else frameWholeBody();
+            // Al abrir no se anima: no hay nada de donde venir.
+            if (current.zone) frameZone(current.zone, true);
+            else frameWholeBody(true);
             placeDecal();
             post({ type: 'ready' });
           });
@@ -232,9 +268,14 @@ export function bodyModelHtml({
           current.manual = null;
           if (zoneKey) frameZone(zoneKey);
           else frameWholeBody();
+
           placeDecal();
         },
-        setSize(value) { current.size = value; placeDecal(); },
+        setSize(value) {
+          if (Math.abs(value - current.size) < 0.005) return;
+          current.size = value;
+          placeDecal();
+        },
         setRotation(deg) { current.rotation = deg; placeDecal(); },
         setOpacity(value) {
           current.opacity = value;
@@ -243,15 +284,65 @@ export function bodyModelHtml({
         setCutout(value) { current.cutout = value; texture = buildTexture(); placeDecal(); },
       };
 
+      // Pellizcar redimensiona el TATUAJE, no la camara (por eso
+      // OrbitControls tiene el zoom desactivado). Se calcula a mano
+      // porque hacen falta los dos punteros a la vez.
+      const MIN_SIZE = 0.3;
+      const MAX_SIZE = 2.5;
+      const active = new Map();
+      let pinchStart = 0;
+      let pinchSize = 1;
+
+      const pinchDistance = () => {
+        const [a, b] = [...active.values()];
+        return Math.hypot(a.x - b.x, a.y - b.y);
+      };
+
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (active.size === 2) {
+          pinchStart = pinchDistance();
+          pinchSize = current.size;
+        }
+      });
+
+      renderer.domElement.addEventListener('pointermove', (e) => {
+        if (!active.has(e.pointerId)) return;
+        active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (active.size !== 2 || !pinchStart || !decal) return;
+
+        const next = Math.min(MAX_SIZE, Math.max(MIN_SIZE, (pinchSize * pinchDistance()) / pinchStart));
+        if (Math.abs(next - current.size) < 0.01) return;
+        current.size = next;
+        placeDecal();
+      });
+
+      const endPointer = (e) => {
+        if (active.size === 2 && active.has(e.pointerId)) {
+          // Al soltar se avisa a la app para que el deslizador de
+          // tamaño no se quede marcando un valor que ya no es.
+          post({ type: 'size', value: current.size });
+        }
+        active.delete(e.pointerId);
+        if (active.size < 2) pinchStart = 0;
+      };
+      renderer.domElement.addEventListener('pointerup', endPointer);
+      renderer.domElement.addEventListener('pointercancel', endPointer);
+
       // Tocar el maniquin coloca el tatuaje justo ahi. Se distingue del
       // gesto de girar por cuanto se movio el dedo: por debajo de unos
       // pocos pixeles es un toque, por encima lo estaba orbitando.
-      const pointer = { x: 0, y: 0, moved: 0, id: null };
+      const pointer = { x: 0, y: 0, moved: 0, id: null, multi: false };
       renderer.domElement.addEventListener('pointerdown', (e) => {
+        if (active.size > 1) {
+          pointer.multi = true;
+          return;
+        }
         pointer.id = e.pointerId;
         pointer.x = e.clientX;
         pointer.y = e.clientY;
         pointer.moved = 0;
+        pointer.multi = false;
       });
       renderer.domElement.addEventListener('pointermove', (e) => {
         if (e.pointerId !== pointer.id) return;
@@ -260,7 +351,9 @@ export function bodyModelHtml({
       renderer.domElement.addEventListener('pointerup', (e) => {
         if (e.pointerId !== pointer.id) return;
         pointer.id = null;
-        if (pointer.moved > 8 || !body || !texture) return;
+        // Si habia dos dedos, era un pellizco o un desplazamiento, no
+        // un toque para colocar.
+        if (pointer.multi || pointer.moved > 8 || !body || !texture) return;
 
         const rect = renderer.domElement.getBoundingClientRect();
         const ndc = new THREE.Vector2(
@@ -285,6 +378,14 @@ export function bodyModelHtml({
       });
 
       renderer.setAnimationLoop(() => {
+        if (flight.active) {
+          flight.t = Math.min(1, flight.t + 16 / flight.duration);
+          // Suavizado al entrar y al salir: arranca y frena despacio.
+          const e = flight.t < 0.5 ? 4 * flight.t ** 3 : 1 - Math.pow(-2 * flight.t + 2, 3) / 2;
+          camera.position.lerpVectors(flight.fromPos, flight.toPos, e);
+          controls.target.lerpVectors(flight.fromTarget, flight.toTarget, e);
+          if (flight.t >= 1) flight.active = false;
+        }
         controls.update();
         renderer.render(scene, camera);
       });

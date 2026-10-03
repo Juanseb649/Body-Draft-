@@ -18,6 +18,8 @@ export interface BodyModelViewerProps {
   opacity: number;
   /** Si el papel del boceto se vuelve transparente. */
   cutout: boolean;
+  /** Avisa del tamaño al que lo dejo un pellizco dentro de la escena. */
+  onSizeChange?: (size: number) => void;
   onError?: (message: string) => void;
 }
 
@@ -46,6 +48,7 @@ export function BodyModelViewer({
   rotationDegrees,
   opacity,
   cutout,
+  onSizeChange,
   onError,
 }: BodyModelViewerProps) {
   const webRef = useRef<WebView>(null);
@@ -89,8 +92,11 @@ export function BodyModelViewer({
       bounces={false}
       onMessage={(event) => {
         try {
-          const message = JSON.parse(event.nativeEvent.data) as { type: string; message?: string };
+          const message = JSON.parse(event.nativeEvent.data) as { type: string; message?: string; value?: number };
           if (message.type === 'error' && message.message) onError?.(message.message);
+          // El pellizco cambia el tamaño dentro de la escena; sin esto
+          // el deslizador de la hoja seguiria marcando el valor viejo.
+          if (message.type === 'size' && typeof message.value === 'number') onSizeChange?.(message.value);
         } catch {
           // Mensaje que no es nuestro; se ignora.
         }
