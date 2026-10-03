@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import { File } from 'expo-file-system';
 
 import type { TattooDesign } from '../models/tattooDesign';
-import type { AIService } from './aiService';
+import type { AIService, ComposeOnPhotoInput } from './aiService';
 
 const IMAGE_MODEL = 'gemini-3.1-flash-image';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -186,6 +186,66 @@ export class GeminiAIService implements AIService {
     if (!imagePart?.inlineData) {
       const text = parts.find((p) => p.text)?.text;
       throw new Error(text ? `Gemini no devolvió la imagen recortada: ${text}` : 'Gemini no devolvió ninguna imagen.');
+    }
+
+    return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+  }
+
+  /**
+   * Pega el tatuaje sobre la piel de la foto, siguiendo su curvatura.
+   *
+   * Se le mandan DOS imagenes en el mismo turno y el orden importa: la
+   * foto primero y el diseno despues, con el texto detras explicando
+   * cual es cual. Al reves el modelo tiende a tomar el diseno como la
+   * imagen a editar.
+   *
+   * El prompt insiste en que NO redibuje: lo que se quiere es ver el
+   * boceto del tatuador tal cual sobre la piel, no una version libre
+   * que el modelo considere mas bonita.
+   */
+  async composeOnPhoto({ photoUri, designUri, bodyZoneLabel }: ComposeOnPhotoInput): Promise<string> {
+    const [photo, design] = await Promise.all([readAsInlineData(photoUri), readAsInlineData(designUri)]);
+
+    const response = await fetch(`${API_BASE}/${IMAGE_MODEL}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inlineData: { mimeType: photo.mimeType, data: photo.data } },
+              { inlineData: { mimeType: design.mimeType, data: design.data } },
+              {
+                text:
+                  `La primera imagen es una foto real. La segunda es un diseño de tatuaje. ` +
+                  `Aplica el tatuaje sobre la piel en la zona: ${bodyZoneLabel}. ` +
+                  'Tiene que verse tatuado de verdad: siguiendo la curvatura del cuerpo, ' +
+                  'con la misma luz, sombras y tono de piel que el resto de la foto, y con ' +
+                  'la tinta ligeramente absorbida por la piel, no como una calcomanía plana. ' +
+                  'Respeta el diseño: mismo trazo, mismas proporciones, mismo motivo. No lo ' +
+                  'redibujes ni lo reinterpretes. No cambies nada más de la foto: ni la pose, ' +
+                  'ni la ropa, ni el fondo, ni la cara. Devuelve la foto completa editada.',
+              },
+            ],
+          },
+        ],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await describeApiError(response));
+    }
+
+    const body = (await response.json()) as GeminiGenerateContentResponse;
+    const parts = body.candidates?.[0]?.content?.parts ?? [];
+    const imagePart = parts.find((p) => p.inlineData);
+
+    if (!imagePart?.inlineData) {
+      const text = parts.find((p) => p.text)?.text;
+      // Si el modelo se niega (p. ej. por politicas sobre fotos de
+      // personas), su explicacion es mas util que un error generico.
+      throw new Error(text ? `Gemini no devolvió la composición: ${text}` : 'Gemini no devolvió ninguna imagen.');
     }
 
     return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;

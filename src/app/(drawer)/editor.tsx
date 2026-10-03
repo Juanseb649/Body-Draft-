@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
@@ -15,6 +15,7 @@ import { Spinner } from '../../components/atoms/Spinner';
 import { DesignOverlay } from '../../components/molecules/DesignOverlay';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
 import { CameraOverlay } from '../../components/organisms/CameraOverlay';
+import { AiPhotoConsentModal } from '../../components/organisms/AiPhotoConsentModal';
 import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useBodyModel } from '../../controllers/useBodyModel';
@@ -29,7 +30,7 @@ import {
   type BodySilhouette,
   type BodyZone,
 } from '../../models/bodyZone';
-import type { TattooDesign } from '../../models/tattooDesign';
+import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
 import { type as typo, useTheme } from '../../theme';
 
 type Mode = 'camera' | 'mannequin';
@@ -67,7 +68,11 @@ export default function TattooEditorScreen() {
   const seenIntro = useSettingsStore((s) => s.onboarding.seenCreateIntro);
   const markIntroSeen = useSettingsStore((s) => s.markCreateIntroSeen);
 
+  const allowAiPhoto = useSettingsStore((s) => s.privacy.allowAiPhotoUpload);
+  const setAllowAiPhoto = useSettingsStore((s) => s.setAllowAiPhotoUpload);
+
   const [mode, setMode] = useState<Mode>('camera');
+  const [consentOpen, setConsentOpen] = useState(false);
   // La primera vez se abre solo. Despues queda a un toque del boton (i).
   const [introOpen, setIntroOpen] = useState(!seenIntro);
 
@@ -104,19 +109,60 @@ export default function TattooEditorScreen() {
     proposal.selectDesign(sketch.id);
   };
 
-  const handleSave = async () => {
-    // La foto solo existe en modo camara; en maniquin se guarda la
-    // propuesta (zona + colocacion) sin instantanea.
-    if (mode === 'camera') {
-      const uri = await capture();
-      if (uri) proposal.attachCameraSnapshot(uri);
+  /** Dispara la foto: a partir de aqui se revisa sobre la captura. */
+  const takePhoto = async () => {
+    const uri = await capture();
+    if (uri) proposal.attachCameraSnapshot(uri);
+  };
+
+  const composeWithAI = async () => {
+    if (!design) return;
+    // El consentimiento se pide una vez y queda guardado; sin el, ni
+    // se llega a construir la peticion.
+    if (!allowAiPhoto) {
+      setConsentOpen(true);
+      return;
     }
+    await proposal.renderWithAI(displayImageUrl(design), BODY_ZONE_LABELS[proposal.bodyZone]);
+  };
+
+  const acceptConsent = async () => {
+    setAllowAiPhoto(true);
+    setConsentOpen(false);
+    if (design) {
+      await proposal.renderWithAI(displayImageUrl(design), BODY_ZONE_LABELS[proposal.bodyZone]);
+    }
+  };
+
+  const handleSave = async () => {
     await proposal.save();
     router.push('/artists');
   };
 
   const renderStage = () => {
     if (mode === 'camera') {
+      // Con una foto tomada se revisa sobre ella, no sobre el vivo:
+      // es lo que se va a componer y lo que se va a guardar.
+      if (proposal.cameraSnapshotUrl) {
+        return (
+          <View style={{ flex: 1 }}>
+            <Image
+              source={{ uri: proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="contain"
+            />
+            {/* Sobre el resultado de la IA el boceto ya esta dentro
+                de la imagen: volver a superponerlo lo duplicaria. */}
+            {!proposal.renderedImageUrl && <DesignOverlay design={design} />}
+            {proposal.isRendering && (
+              <View style={styles.rendering}>
+                <Spinner color="#FFFFFF" />
+                <Text style={[typo.bodyStrong, { color: '#FFFFFF' }]}>Componiendo sobre tu piel…</Text>
+              </View>
+            )}
+          </View>
+        );
+      }
       if (permission?.granted) return <CameraOverlay cameraRef={cameraRef} design={design} />;
       return (
         <View style={styles.center}>
@@ -125,7 +171,7 @@ export default function TattooEditorScreen() {
             Necesitamos la cámara para probarlo sobre tu piel
           </Text>
           <Text style={[typo.caption, { color: colors.textMuted, textAlign: 'center' }]}>
-            La imagen se queda en tu teléfono.
+            La vista previa ocurre dentro de tu teléfono.
           </Text>
           <AppButton label="Permitir cámara" size="M" onPress={requestPermission} />
           <Pressable onPress={() => setMode('mannequin')} hitSlop={8}>
@@ -178,6 +224,17 @@ export default function TattooEditorScreen() {
             <Text style={[typo.caption, { color: '#FFFFFF' }]}>Adjunta un boceto para verlo sobre el cuerpo</Text>
           </View>
         )}
+
+        {mode === 'camera' && permission?.granted && !proposal.cameraSnapshotUrl && (
+          <Pressable
+            onPress={takePhoto}
+            style={[styles.shutter, { bottom: 24 }]}
+            accessibilityLabel="Tomar foto"
+            accessibilityHint="Captura para ver el resultado realista"
+          >
+            <Icon name="shutter" size={64} color="#FFFFFF" />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -225,7 +282,29 @@ export default function TattooEditorScreen() {
           </Pressable>
         </View>
 
-        {design && (
+        {mode === 'camera' && proposal.cameraSnapshotUrl && (
+          <>
+            <AppButton
+              label={proposal.renderedImageUrl ? 'Rehacer la composición' : 'Ver resultado realista'}
+              onPress={composeWithAI}
+              isLoading={proposal.isRendering}
+              disabled={!design}
+            />
+            <Text style={styles.hint}>
+              La IA aplica el tatuaje siguiendo la curvatura y la luz de tu piel. Tu foto se envía a Google para
+              esto; el resto de la app no sale del teléfono.
+            </Text>
+            {proposal.renderError && <Text style={styles.error}>{proposal.renderError}</Text>}
+            <AppButton
+              label="Repetir la foto"
+              variant="secondary"
+              size="M"
+              onPress={proposal.discardCameraSnapshot}
+            />
+          </>
+        )}
+
+        {design && !proposal.cameraSnapshotUrl && (
           <>
             <Text style={styles.hint}>
               Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.
@@ -309,6 +388,11 @@ export default function TattooEditorScreen() {
       </ScrollView>
 
       <CreateIntroModal visible={introOpen} onClose={closeIntro} />
+      <AiPhotoConsentModal
+        visible={consentOpen}
+        onAccept={acceptConsent}
+        onCancel={() => setConsentOpen(false)}
+      />
     </View>
   );
 }
@@ -369,6 +453,18 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     label: { ...typo.label, color: colors.textMuted, marginTop: 8 },
     hint: { ...typo.caption, color: colors.textMuted },
+    shutter: { position: 'absolute', alignSelf: 'center' },
+    rendering: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
     error: { ...typo.caption, color: colors.danger },
     zoneRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
     sliderLabel: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },

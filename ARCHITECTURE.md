@@ -448,6 +448,16 @@ dato es compartido entre cuentas, no local a una.
   puede actualizar cualquier campo" a policies mas finas (ej. que el
   cliente no pueda poner `status = 'confirmed'`, eso deberia ser solo del
   tatuador) — ver el TODO dentro de la migracion.
+- La composicion realista sobre foto (`AIService.composeOnPhoto`) es el
+  UNICO punto de la app donde una imagen del cuerpo del usuario sale
+  del telefono. Por eso: es bajo demanda y nunca automatica, exige
+  consentimiento explicito guardado en
+  `settings.privacy.allowAiPhotoUpload` (arranca en false, revocable
+  desde Ajustes), y la vista previa en vivo y el maniquin 3D siguen
+  siendo locales para que decir que no no inutilice la app. Sigue
+  abierto el hallazgo #5 de la auditoria: la API key viaja en el
+  bundle, asi que antes de abrir esto al publico hay que moverla a una
+  Edge Function.
 - Tests: ya no son cero (`npm test`, preset `jest-expo`). Cubren la
   logica donde un fallo es SILENCIOSO: el mapeo de `profiles` a `Artist`,
   la limpieza de la imagen cuando falla el insert de un trabajo, el

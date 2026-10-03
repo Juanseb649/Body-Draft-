@@ -140,6 +140,21 @@ export default function SettingsScreen() {
         <Pressable onPress={() => settings.setLocale(settings.account.locale === 'es' ? 'en' : 'es')}>
           <Row label="Idioma" right={<Text style={[typo.body, { color: colors.textMuted }]}>{LOCALE_LABEL[settings.account.locale]}  ›</Text>} />
         </Pressable>
+        {/* Es lo unico de la app que saca una foto del usuario de su
+            telefono, asi que tiene interruptor propio y no queda
+            enterrado en "Privacidad y datos". */}
+        <Row
+          label="Resultado realista con IA"
+          hint="Envía la foto que tomes a Google para aplicar el tatuaje sobre tu piel"
+          right={
+            <Switch
+              value={settings.privacy.allowAiPhotoUpload}
+              onValueChange={settings.setAllowAiPhotoUpload}
+              trackColor={{ false: colors.border, true: colors.selection }}
+              thumbColor={palette.white}
+            />
+          }
+        />
         <Row label="Privacidad y datos" right={<Text style={{ color: colors.textMuted }}>›</Text>} />
       </Group>
 

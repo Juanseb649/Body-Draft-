@@ -20,7 +20,12 @@ const STEPS: Step[] = [
   {
     icon: 'camera',
     title: 'Sobre tu piel',
-    body: 'La cámara muestra tu cuerpo en vivo y coloca el boceto encima, para que veas el tamaño y la posición reales antes de tatuarte. La imagen no sale de tu teléfono: solo se guarda si tocas "Guardar propuesta".',
+    body: 'La cámara muestra tu cuerpo en vivo y coloca el boceto encima, para que veas el tamaño y la posición reales antes de tatuarte. Esta vista previa ocurre dentro de tu teléfono y no se envía a ningún sitio.',
+  },
+  {
+    icon: 'shutter',
+    title: 'El resultado realista',
+    body: 'Cuando el encuadre te guste, haz la foto. Sobre ella puedes pedir que la IA aplique el tatuaje siguiendo la curvatura y la luz de tu piel, en vez de pegado plano. Para eso —y solo para eso— esa foto se envía a Google: te lo pedimos antes, y puedes decir que no y quedarte con la vista previa y el maniquí.',
   },
   {
     icon: 'image',
