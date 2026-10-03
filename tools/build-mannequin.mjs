@@ -28,33 +28,26 @@ class Mesh {
     this.pos.push(x, y, z);
     return this.pos.length / 3 - 1;
   }
-  quad(a, b, c, d) {
-    this.idx.push(a, b, c, a, c, d);
-  }
   tri(a, b, c) {
     this.idx.push(a, b, c);
   }
   /**
-   * Signo de la orientacion de la cara (a,b,c): positivo si su normal
-   * apunta en sentido contrario a `inside`, es decir hacia afuera del
-   * cuerpo. Sirve para corregir el bobinado sin depender de la
-   * direccion en que se escribio cada loft.
+   * Volumen con signo de un conjunto de caras cerrado. Por el teorema
+   * de la divergencia es positivo si estan bobinadas hacia afuera y
+   * negativo si estan del reves, y no depende de donde este el origen
+   * mientras la superficie sea cerrada y coherente.
    */
-  faceNormalDot(a, b, c, inside) {
-    const A = a * 3, B = b * 3, C = c * 3;
-    const ux = this.pos[B] - this.pos[A];
-    const uy = this.pos[B + 1] - this.pos[A + 1];
-    const uz = this.pos[B + 2] - this.pos[A + 2];
-    const vx = this.pos[C] - this.pos[A];
-    const vy = this.pos[C + 1] - this.pos[A + 1];
-    const vz = this.pos[C + 2] - this.pos[A + 2];
-    const nx = uy * vz - uz * vy;
-    const ny = uz * vx - ux * vz;
-    const nz = ux * vy - uy * vx;
-    const cx = (this.pos[A] + this.pos[B] + this.pos[C]) / 3 - inside[0];
-    const cy = (this.pos[A + 1] + this.pos[B + 1] + this.pos[C + 1]) / 3 - inside[1];
-    const cz = (this.pos[A + 2] + this.pos[B + 2] + this.pos[C + 2]) / 3 - inside[2];
-    return nx * cx + ny * cy + nz * cz;
+  signedVolume(faces) {
+    let volume = 0;
+    for (const [i, j, k] of faces) {
+      const a = i * 3, b = j * 3, c = k * 3;
+      volume +=
+        (this.pos[a] * (this.pos[b + 1] * this.pos[c + 2] - this.pos[b + 2] * this.pos[c + 1]) -
+          this.pos[a + 1] * (this.pos[b] * this.pos[c + 2] - this.pos[b + 2] * this.pos[c]) +
+          this.pos[a + 2] * (this.pos[b] * this.pos[c + 1] - this.pos[b + 1] * this.pos[c])) /
+        6;
+    }
+    return volume;
   }
   /** Normales por vertice promediando las de cada cara (area-weighted). */
   normals() {
@@ -111,38 +104,56 @@ function loft(mesh, rings, axis = 'y') {
     return out;
   });
 
-  // El bobinado correcto depende de hacia donde avanza el loft (el
-  // torso sube, los brazos y piernas bajan), asi que en vez de
-  // asumirlo se comprueba cara por cara que la normal apunte hacia
-  // afuera respecto del eje del loft.
-  const outwardQuad = (a, b, c, d, ref) => {
-    if (mesh.faceNormalDot(a, b, c, ref) >= 0) mesh.quad(a, b, c, d);
-    else mesh.quad(d, c, b, a);
-  };
+  // El bobinado se decide UNA vez para todo el loft, no cara por cara.
+  //
+  // Antes se comprobaba cada quad contra el eje local y parecia mas
+  // robusto, pero no lo era: donde el loft avanza en diagonal tanto
+  // como mide de radio (la cupula del hombro), ese eje deja de ser
+  // fiable y alguna banda sale girada respecto de sus vecinas. El
+  // resultado era una malla cerrada pero incoherente — 28 aristas del
+  // brazo con las dos caras recorriendolas en el mismo sentido — que
+  // carga sin error y se ilumina mal.
+  //
+  // Aqui se cose todo con un sentido fijo, que es coherente por
+  // construccion, y al final se mira el volumen con signo del conjunto:
+  // si salio negativo, el loft entero estaba del reves y se le da la
+  // vuelta a todas sus caras a la vez.
+  const faces = [];
+  const quad = (a, b, c, d) => faces.push([a, b, c], [a, c, d]);
 
   for (let i = 0; i < ringVerts.length - 1; i++) {
     const lo = ringVerts[i];
     const hi = ringVerts[i + 1];
-    const mid = rings[i].c.map((v, k) => (v + rings[i + 1].c[k]) / 2);
     for (let s = 0; s < SEG; s++) {
       const t = (s + 1) % SEG;
-      outwardQuad(lo[s], lo[t], hi[t], hi[s], mid);
+      quad(lo[s], lo[t], hi[t], hi[s]);
     }
   }
 
-  // Tapas: abanico desde el centro de cada extremo, mirando hacia
-  // afuera del loft (lejos del anillo vecino).
-  const cap = (ring, end, neighbour) => {
-    const c = mesh.vertex(end[0], end[1], end[2]);
+  // Tapas: abanico desde el centro de cada extremo.
+  //
+  // El sentido no se elige a ojo. En una malla coherente, cada arista
+  // la recorren sus dos caras en sentidos opuestos. Las paredes
+  // recorren el anillo inferior de cada banda en sentido s->t, y el
+  // superior en t->s; el primer anillo solo es "inferior" y el ultimo
+  // solo es "superior", asi que la tapa de abajo tiene que recorrerlo
+  // t->s y la de arriba s->t.
+  const cap = (ring, center, reverse) => {
+    const c = mesh.vertex(center[0], center[1], center[2]);
     for (let s = 0; s < SEG; s++) {
       const t = (s + 1) % SEG;
-      if (mesh.faceNormalDot(c, ring[s], ring[t], neighbour) >= 0) mesh.tri(c, ring[s], ring[t]);
-      else mesh.tri(c, ring[t], ring[s]);
+      faces.push(reverse ? [c, ring[t], ring[s]] : [c, ring[s], ring[t]]);
     }
   };
   const last = rings.length - 1;
-  cap(ringVerts[0], rings[0].c, rings[1].c);
-  cap(ringVerts[last], rings[last].c, rings[last - 1].c);
+  cap(ringVerts[0], rings[0].c, true);
+  cap(ringVerts[last], rings[last].c, false);
+
+  const flip = mesh.signedVolume(faces) < 0;
+  for (const [a, b, c] of faces) {
+    if (flip) mesh.tri(a, c, b);
+    else mesh.tri(a, b, c);
+  }
 }
 
 // --- proporciones ---------------------------------------------------

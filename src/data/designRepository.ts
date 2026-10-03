@@ -1,4 +1,5 @@
 import type { AIService } from '../services/aiService';
+import type { ImageUploadService } from '../services/imageUploadService';
 import type { StorageService } from '../services/storageService';
 import type { TattooDesign } from '../models/tattooDesign';
 import type { TattooProposal } from '../models/tattooProposal';
@@ -20,6 +21,15 @@ interface DesignRow {
 export interface ArtistFeedItem {
   design: TattooDesign;
   artistName: string;
+}
+
+/** Trabajo nuevo que un tatuador publica en su catalogo. */
+export interface NewArtistWork {
+  title: string;
+  description?: string;
+  style?: string;
+  /** URI que devuelve el selector de imagenes (file://...), o ya una URL. */
+  localImageUri: string;
 }
 
 function toFeedItem(row: DesignRow): ArtistFeedItem {
@@ -54,6 +64,7 @@ export class DesignRepository {
   constructor(
     private readonly storage: StorageService,
     private readonly ai: AIService,
+    private readonly images: ImageUploadService,
   ) {}
 
   getDesigns(ownerId?: string): Promise<TattooDesign[]> {
@@ -84,6 +95,49 @@ export class DesignRepository {
 
   saveDesign(design: TattooDesign): Promise<void> {
     return this.storage.saveDesign(design);
+  }
+
+  /**
+   * Publica un trabajo en el catalogo del tatuador. La imagen se sube
+   * primero a Storage: guardar aqui la URI local del telefono haria que
+   * el trabajo se viera roto en cualquier otra cuenta (ver
+   * ImageUploadService).
+   */
+  async publishArtistWork(artistId: string, work: NewArtistWork): Promise<TattooDesign> {
+    const imageUrl = work.localImageUri.startsWith('http')
+      ? work.localImageUri
+      : await this.images.uploadPortfolioImage(work.localImageUri, artistId);
+
+    const { data, error } = await supabase
+      .from('designs')
+      .insert({
+        artist_id: artistId,
+        title: work.title,
+        description: work.description || null,
+        image_url: imageUrl,
+        style: work.style || null,
+      })
+      .select('*, profiles(name)')
+      .single();
+
+    if (error) {
+      // La fila no se creo, asi que la imagen recien subida quedaria
+      // huerfana ocupando espacio sin que nada la referencie.
+      await this.images.removePortfolioImage(imageUrl).catch(() => {});
+      throw error;
+    }
+
+    return toFeedItem(data as DesignRow).design;
+  }
+
+  /** Quita un trabajo del catalogo, y con el su imagen en Storage. */
+  async unpublishArtistWork(design: TattooDesign): Promise<void> {
+    const { error } = await supabase.from('designs').delete().eq('id', design.id);
+    if (error) throw error;
+
+    // Se borra despues de la fila y no antes: si fallara el delete, es
+    // preferible una imagen huerfana a un trabajo visible sin imagen.
+    await this.images.removePortfolioImage(design.imageUrl).catch(() => {});
   }
 
   async generateWithAI(prompt: string, style?: string): Promise<TattooDesign> {

@@ -87,7 +87,9 @@ export function SidebarContent(props: DrawerContentComponentProps) {
         </Pressable>
       </View>
 
-      <Pressable onPress={() => go(SETTINGS_ENTRY.href)} style={styles.profile} accessibilityRole="button">
+      {/* La ficha del perfil lleva a editarlo, no a Ajustes: es donde
+          un tatuador completa su ficha publica y publica trabajos. */}
+      <Pressable onPress={() => go('/profile/edit')} style={styles.profile} accessibilityRole="button">
         <View style={[styles.avatar, { borderColor: colors.primaryText }]}>
           <Text style={[typo.bodyStrong, { color: colors.primaryText }]}>{initial}</Text>
         </View>

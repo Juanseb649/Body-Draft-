@@ -24,6 +24,7 @@ siembra cuentas cuyo rol lo escribe el trigger que define
 | `20260930120000_artist_designs.sql` | `designs`: el catálogo público que alimenta el feed de Inicio |
 | `20261002120000_role_from_signup.sql` | El rol y la especialidad se eligen **al registrarse**, no después en Ajustes |
 | `20261002130000_seed_demo_artists.sql` | Dos tatuadores de demostración con portafolio (**solo desarrollo**) |
+| `20261002140000_portfolio_storage.sql` | Bucket `portfolio` de Storage: lectura pública, escritura solo en la carpeta propia |
 
 ## Comprobar que quedó bien
 

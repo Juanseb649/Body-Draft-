@@ -12,16 +12,8 @@ import { ArtistWorkCard } from '../../components/molecules/ArtistWorkCard';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useDesignStore } from '../../controllers/useDesignStore';
+import { greetingFor } from '../../models/greeting';
 import { type as typo, useTheme } from '../../theme';
-
-/** Saludo segun la hora del dia. */
-function greetingFor(date: Date): string {
-  const hour = date.getHours();
-  if (hour < 6) return 'Buenas noches';
-  if (hour < 12) return 'Buenos días';
-  if (hour < 20) return 'Buenas tardes';
-  return 'Buenas noches';
-}
 
 /**
  * "Inicio". Ya NO lleva accesos a las secciones: para eso esta el menu

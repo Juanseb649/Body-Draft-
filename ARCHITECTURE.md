@@ -431,14 +431,12 @@ dato es compartido entre cuentas, no local a una.
 
 ## 12. Pendiente / fuera del MVP
 
-- Un tatuador no tiene todavia pantalla para editar `bio`, `location` ni
-  su portafolio en `profiles`. El rol y la `specialty` ya se eligen al
-  registrarse (`auth/register.tsx` -> `raw_user_meta_data` ->
-  `handle_new_user()`, ver 20261002120000_role_from_signup.sql), asi que
-  aparece en la lista de Artistas con nombre y estilo; el resto queda
-  vacio hasta que exista "Editar perfil". Esa pantalla es tambien la que
-  deberia permitir subir bocetos al catalogo (`designs`), que hoy solo se
-  puede sembrar por SQL.
+- Subida de imagenes: resuelta para el portafolio de los tatuadores
+  (bucket `portfolio` de Supabase Storage, ver
+  20261002140000_portfolio_storage.sql y `services/imageUploadService.ts`),
+  porque esas imagenes las tienen que ver OTRAS cuentas. Los disenos
+  personales del usuario y los snapshots de camara siguen siendo URIs
+  locales del dispositivo a proposito: no se comparten con nadie.
 - Notificar al tatuador de una cita nueva es pasivo: la ve cuando abre su
   propia Agenda (RLS de `appointments` se lo permite), pero no hay push
   notification todavia. Requiere Expo push tokens + Supabase Realtime o
@@ -447,8 +445,12 @@ dato es compartido entre cuentas, no local a una.
   puede actualizar cualquier campo" a policies mas finas (ej. que el
   cliente no pueda poner `status = 'confirmed'`, eso deberia ser solo del
   tatuador) — ver el TODO dentro de la migracion.
-- Subida de imagenes/snapshots a storage remoto (hoy se guardan URIs
-  locales del dispositivo).
+- Tests: ya no son cero (`npm test`, preset `jest-expo`). Cubren la
+  logica donde un fallo es SILENCIOSO: el mapeo de `profiles` a `Artist`,
+  la limpieza de la imagen cuando falla el insert de un trabajo, el
+  rollback del borrado optimista, el saludo por franja horaria y la
+  geometria de los `.glb`. No hay todavia tests de componentes ni de
+  navegacion.
 - Texturizado real del diseno sobre la malla 3D en `model3d.tsx`. El
   maniquin ya no es un placeholder remoto. Los `.glb` viven en
   `assets/models/` y tienen dos origenes distintos:

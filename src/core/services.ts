@@ -6,6 +6,8 @@ import type { AuthService } from '../services/authService';
 import { SupabaseAuthService } from '../services/authService';
 import { BodyModelServiceImpl } from '../services/bodyModelService';
 import { GeminiAIService } from '../services/geminiAiService';
+import type { ImageUploadService } from '../services/imageUploadService';
+import { SupabaseImageUploadService } from '../services/imageUploadService';
 import { SqliteStorageService } from '../services/sqliteStorageService';
 import type { StorageService } from '../services/storageService';
 
@@ -23,7 +25,7 @@ import type { StorageService } from '../services/storageService';
  * supabase/migrations/ en el proyecto de Supabase (ver supabase/README.md).
  */
 
-export type { ArtistFeedItem } from '../data/designRepository';
+export type { ArtistFeedItem, NewArtistWork } from '../data/designRepository';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
 
@@ -31,7 +33,8 @@ export const storageService: StorageService = new SqliteStorageService();
 export const aiService: AIService = new GeminiAIService(GEMINI_API_KEY);
 export const bodyModelService = new BodyModelServiceImpl();
 export const authService: AuthService = new SupabaseAuthService();
+export const imageUploadService: ImageUploadService = new SupabaseImageUploadService();
 
-export const designRepository = new DesignRepository(storageService, aiService);
+export const designRepository = new DesignRepository(storageService, aiService, imageUploadService);
 export const artistRepository = new ArtistRepository();
 export const appointmentRepository = new AppointmentRepository();

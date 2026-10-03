@@ -51,6 +51,7 @@ function AppShell() {
         {/* Drill-down: se apilan ENCIMA del menu lateral y llevan chevron
             de volver, no boton de menu. */}
         <Stack.Screen name="artists/[id]" />
+        <Stack.Screen name="profile/edit" />
         <Stack.Screen name="appointment/new" />
         <Stack.Screen name="appointment/[artistId]" />
       </Stack>

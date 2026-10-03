@@ -51,4 +51,55 @@ export class ArtistRepository {
     if (error) throw error;
     return data ? toArtist(data as ProfileRow) : undefined;
   }
+
+  /**
+   * El perfil de la cuenta con la sesion abierta. No filtra por
+   * `role`: a diferencia de `getArtistById`, aqui hace falta poder
+   * leerlo aunque todavia no sea tatuador (es justo lo que permite
+   * volverse uno desde "Editar perfil").
+   */
+  async getMyProfile(userId: string): Promise<Artist | undefined> {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (error) throw error;
+    return data ? toArtist(data as ProfileRow) : undefined;
+  }
+
+  /**
+   * Guarda los campos editables del perfil propio. La RLS ya impide
+   * tocar el de otro, pero el `eq('id', userId)` deja explicito en el
+   * codigo que esto solo escribe una fila.
+   */
+  async updateMyProfile(userId: string, patch: ArtistProfilePatch): Promise<Artist> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name: patch.name,
+        // Una cadena vacia en un campo opcional se guarda como NULL:
+        // asi `coalesce`/`??` de toda la app la tratan como "sin dato"
+        // en vez de pintar un hueco.
+        specialty: emptyToNull(patch.specialty),
+        bio: emptyToNull(patch.bio),
+        location: emptyToNull(patch.location),
+        role: patch.role,
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+    if (error) throw error;
+    return toArtist(data as ProfileRow);
+  }
+}
+
+/** Campos del perfil que el propio tatuador puede editar. */
+export interface ArtistProfilePatch {
+  name: string;
+  specialty: string;
+  bio: string;
+  location: string;
+  role: 'client' | 'artist';
+}
+
+function emptyToNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
