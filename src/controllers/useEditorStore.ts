@@ -25,7 +25,7 @@ function initialProposal(): TattooProposal {
     userId: 'current-user',
     designId: '',
     bodyZone: 'forearm',
-    silhouette: 'neutral',
+    silhouette: 'masculine',
     placement: defaultPlacement(),
     status: 'draft',
     createdAt: new Date().toISOString(),

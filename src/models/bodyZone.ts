@@ -40,9 +40,14 @@ export const BODY_ZONE_LABELS: Record<BodyZone, string> = {
 /**
  * Silueta del maniquin 3D sobre la que se visualiza el diseno.
  *
- * BodyDraft es neutral respecto al sexo del usuario: `neutral` es la
- * silueta por defecto y cubre todas las zonas de BodyZone. `masculine`
- * y `feminine` son variaciones opcionales de la misma malla base.
+ * Las dos cubren todas las zonas de BodyZone: la silueta solo cambia
+ * las proporciones del cuerpo sobre el que se previsualiza el tatuaje,
+ * no que se puede tatuar ni donde.
+ *
+ * Hubo una tercera, `neutral`, pensada como punto medio por defecto.
+ * Se quito: en la practica nadie la elegia —quien entra a probarse un
+ * tatuaje quiere verlo sobre un cuerpo parecido al suyo— y obligaba a
+ * mantener un tercer .glb.
  */
-export const BODY_SILHOUETTES = ['neutral', 'masculine', 'feminine'] as const;
+export const BODY_SILHOUETTES = ['masculine', 'feminine'] as const;
 export type BodySilhouette = (typeof BODY_SILHOUETTES)[number];

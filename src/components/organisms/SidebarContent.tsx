@@ -20,7 +20,6 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
       { section: 'inicio', href: '/' },
       { section: 'disena', href: '/disena' },
       { section: 'crea', href: '/editor' },
-      { section: 'explora', href: '/model3d' },
     ],
   },
   {

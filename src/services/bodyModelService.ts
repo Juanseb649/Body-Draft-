@@ -41,14 +41,13 @@ export interface BodyModelService {
  * del bundle lo engordarian mas de un megabyte cada uno.
  *
  * `feminine` es un base mesh real importado con
- * `node tools/import-obj-model.mjs`; `neutral` y `masculine` siguen
- * siendo los generados por `node tools/build-mannequin.mjs`.
+ * `node tools/import-obj-model.mjs`; `masculine` es el generado por
+ * `node tools/build-mannequin.mjs`.
  */
 const MODEL_MODULE: Record<BodySilhouette, number> = {
   /* eslint-disable @typescript-eslint/no-require-imports -- un asset de
      Metro solo se puede referenciar con require(); un import daria el
      binario, no el id del asset. */
-  neutral: require('../../assets/models/mannequin-neutral.glb'),
   masculine: require('../../assets/models/mannequin-masculine.glb'),
   feminine: require('../../assets/models/mannequin-feminine.glb'),
   /* eslint-enable @typescript-eslint/no-require-imports */

@@ -32,10 +32,10 @@ export default function DrawerLayout() {
     >
       <Drawer.Screen name="index" options={{ title: 'Inicio' }} />
       <Drawer.Screen name="disena" options={{ title: 'Diseña' }} />
-      {/* Camara y maniquin 3D: el gesto de arrastre choca con sus propios
-          controles, asi que ahi el menu solo se abre con el boton. */}
+      {/* Camara y maniquin 3D conviven en Crea, y el gesto de arrastre
+          choca con sus propios controles: ahi el menu solo se abre con
+          el boton. */}
       <Drawer.Screen name="editor" options={{ title: 'Crea', swipeEnabled: false }} />
-      <Drawer.Screen name="model3d" options={{ title: 'Explora 3D', swipeEnabled: false }} />
       <Drawer.Screen name="artists" options={{ title: 'Artistas' }} />
       <Drawer.Screen name="agenda" options={{ title: 'Agenda' }} />
       <Drawer.Screen name="ajustes" options={{ title: 'Ajustes' }} />

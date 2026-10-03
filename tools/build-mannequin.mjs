@@ -165,10 +165,10 @@ function loft(mesh, rings, axis = 'y') {
  */
 const SILHOUETTES = {
   masculine: { shoulder: 1.0, chest: 1.0, waist: 1.0, hip: 1.0, limb: 1.0, bust: 0 },
-  neutral: { shoulder: 0.94, chest: 0.96, waist: 0.94, hip: 1.05, limb: 0.95, bust: 0 },
 };
 
-// OJO: `feminine` NO esta aqui a proposito. Ese maniqui ya no se
+// OJO: `feminine` NO esta aqui a proposito, y `neutral` ya no existe
+// como silueta (ver models/bodyZone.ts). Ese maniqui ya no se
 // genera: es un base mesh real importado con tools/import-obj-model.mjs
 // (ver ARCHITECTURE.md). Si se volviera a añadir a esta lista, correr
 // el script sobrescribiria assets/models/mannequin-feminine.glb.

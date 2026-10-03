@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
  * banda del hombro.
  */
 
-const MODELS = ['mannequin-neutral', 'mannequin-masculine', 'mannequin-feminine'];
+const MODELS = ['mannequin-masculine', 'mannequin-feminine'];
 
 /** El unico que se genera por codigo no es: viene de un .obj de terceros. */
 const IMPORTED = 'mannequin-feminine';

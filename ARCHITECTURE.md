@@ -79,8 +79,7 @@ src/
       disena.tsx                   Diseña
       agenda.tsx                   Agenda (Mis citas)
       ajustes.tsx                  Ajustes
-    editor/index.tsx              Crea (camara + ajustes) — pantalla apilada, con SectionHeader propio
-    model3d/index.tsx             Explora (maniquin 3D) — apilada
+    editor.tsx                   Crea: camara Y maniquin 3D en la misma pantalla
     artists/index.tsx             Lista de tatuadores — apilada
     artists/[id].tsx              Perfil del artista — apilada
     appointment/[artistId].tsx    Agendar cita (calendario) — apilada
@@ -176,10 +175,9 @@ app/auth/register.tsx ──useAuthStore.signUp──┘
 useEditorStore.selectDesign(designId)
    │
    ▼
-app/editor/index.tsx  ──uses──> useEditorStore + useCameraController
-   │  CameraOverlay (organism): arrastre → editor.move(...)
-   │
-   ├──(badge "3D")──> app/model3d/index.tsx ──uses──> useEditorStore (mismo estado)
+app/(drawer)/editor.tsx ──uses──> useEditorStore + useCameraController + useBodyModel
+   │  CameraOverlay o BodyModelViewer segun el modo elegido
+   │  DesignOverlay (molecule): arrastre → editor.move(...), igual sobre los dos
    │
    ▼ (AppButton "Guardar propuesta")
 useEditorStore.save() ──> designRepository.saveProposal()
@@ -205,16 +203,21 @@ En su lugar:
 
 1. `useEditorStore` mantiene una unica `TattooProposal` (con su
    `Placement`) mientras el usuario ajusta el diseno.
-2. `app/editor/index.tsx` (camara) y `app/model3d/index.tsx` (maniquin)
-   leen y escriben sobre **el mismo store**, asi que un cambio de zona o
-   escala en una vista se refleja en la otra.
+2. `app/(drawer)/editor.tsx` tiene los dos modos —camara y maniquin— y
+   ambos leen y escriben sobre **el mismo store**, asi que cambiar de
+   modo conserva zona, escala y colocacion. Arranca en camara, que es a
+   lo que se entra a esta seccion; el maniquin es la alternativa para
+   quien no da permiso de camara o quiere ver una zona que no alcanza
+   (la espalda).
+
+   Hubo una seccion aparte, "Explora", solo para el maniquin. Se quito:
+   eran dos formas de hacer lo mismo y obligaban a saltar de seccion a
+   mitad del flujo.
 3. `bodyModelService.ts` resuelve dos cosas:
-   - `modelAssetFor(silhouette)`: que maniquin `.glb` generico cargar
-     (`neutral`, `masculine`, `feminine` — la app es neutral por defecto
-     respecto al sexo del usuario, ver `models/bodyZone.ts`).
+   - `modelUriFor(silhouette)`: que maniquin `.glb` generico cargar
+     (`masculine` o `feminine`, ver `models/bodyZone.ts`).
    - `mapToMeshUV(...)`: traduce la colocacion 2D ajustada en camara a la
-     region UV de esa malla (mismo `BodyZone` en las tres siluetas, por
-     compartir topologia).
+     region UV de esa malla (mismo `BodyZone` en las dos siluetas).
 4. La foto capturada con camara (`cameraSnapshotUrl`) se guarda aparte,
    como snapshot puntual; el maniquin 3D, al ser generico + reutilizable,
    no necesita guardarse como asset: se **re-renderiza** a partir de
@@ -304,13 +307,13 @@ Sin esto, `signUp`/`signIn`/`signOut` fallan (ver seccion 11).
    **dashboard** en su lugar, con el logo/icono de cada seccion y su
    nombre al lado. `(tabs)/_layout.tsx` paso de `Tabs` a un `Stack` sin
    barra visible, e `index.tsx` ("Inicio") se convirtio en ese dashboard:
-   una grilla con las secciones (Diseña, Crea, Agenda, Explora, Artistas,
+   una grilla con las secciones (Diseña, Crea, Agenda, Artistas,
    Ajustes — Mensajes se elimino por completo a pedido del usuario, ver
    seccion 12).
 
 Como ya no hay una barra persistente para volver, cada pantalla de
 seccion (incluidas las que viven **fuera** de `(tabs)/` como rutas
-apiladas: camara, calendario, perfil, maniquin 3D) usa
+apiladas: calendario, perfil) usa
 `components/molecules/SectionHeader.tsx` (chevron de volver + su
 `SectionIcon` + nombre) para regresar al dashboard — ver el mapa de
 carpetas (seccion 2).
@@ -383,7 +386,7 @@ propio `artistId` — usando el **mismo** `useDesignStore` /
 `designRepository` que un cliente usa para sus disenos personales o
 generados por IA. Consecuencia directa de este diseno: una plantilla de
 tatuador entra automaticamente al mismo `editor/index.tsx` /
-`model3d/index.tsx` que cualquier otro diseno, sin pantallas ni pipelines
+`editor.tsx` que cualquier otro diseno, sin pantallas ni pipelines
 separados. `designRepository.getArtistTemplates(artistId)` filtra el
 catalogo de un tatuador para mostrarlo en su perfil/portafolio.
 
@@ -451,12 +454,12 @@ dato es compartido entre cuentas, no local a una.
   rollback del borrado optimista, el saludo por franja horaria y la
   geometria de los `.glb`. No hay todavia tests de componentes ni de
   navegacion.
-- Texturizado real del diseno sobre la malla 3D en `model3d.tsx`. El
+- Texturizado real del diseno sobre la malla 3D en `editor.tsx`. El
   maniquin ya no es un placeholder remoto. Los `.glb` viven en
   `assets/models/` y tienen dos origenes distintos:
-  - `neutral` y `masculine` los **genera** `tools/build-mannequin.mjs`
-    por codigo (lofts de secciones elipticas, sin dependencias ni
-    assets externos), ~86 KB cada uno.
+  - `masculine` lo **genera** `tools/build-mannequin.mjs` por codigo
+    (lofts de secciones elipticas, sin dependencias ni assets
+    externos), ~86 KB.
   - `feminine` es un **base mesh real** que se **importa** con
     `tools/import-obj-model.mjs`, que convierte un `.obj` a `.glb` y lo
     normaliza a la convencion de la app: 1.80 m de alto, pies en y = 0,

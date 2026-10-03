@@ -1,6 +1,6 @@
 import type { GlowTone } from '../../theme';
 
-export type SectionKey = 'inicio' | 'disena' | 'crea' | 'agenda' | 'explora' | 'artistas' | 'ajustes';
+export type SectionKey = 'inicio' | 'disena' | 'crea' | 'agenda' | 'artistas' | 'ajustes';
 
 type Stroke = { d: string; tone: GlowTone; width?: number; transform?: string };
 
@@ -52,17 +52,10 @@ export const SECTIONS: Record<
       { tone: 'fuchsia', d: 'M100 148 C 76 132, 66 120, 66 108 C 66 98, 74 92, 82 92 C 90 92, 96 97, 100 104 C 104 97, 110 92, 118 92 C 126 92, 134 98, 134 108 C 134 120, 124 132, 100 148 Z' },
     ],
   },
-  explora: {
-    label: 'Explora',
-    word: 'blue',
-    swoosh: 'fuchsia',
-    strokes: [
-      { tone: 'amber', d: 'M22 100 C 58 52, 142 52, 178 100 C 142 148, 58 148, 22 100 Z' },
-      { tone: 'amber', width: 4, d: 'M60 44 L66 58 M100 32 V48 M140 44 L134 58' },
-      { tone: 'fuchsia', d: 'M74 100 A26 26 0 1 0 126 100 A26 26 0 1 0 74 100 Z' },
-      { tone: 'blue', d: 'M92 100 A8 8 0 1 0 108 100 A8 8 0 1 0 92 100 Z' },
-    ],
-  },
+  // Hubo una seccion "Explora" con el maniquin 3D. Se quito: el
+  // maniquin vive ahora dentro de "Crea", junto a la camara, porque
+  // son dos formas de hacer lo mismo —ver el boceto sobre un cuerpo—
+  // y separarlas obligaba a saltar de seccion a mitad del flujo.
   artistas: {
     label: 'Artistas',
     word: 'fuchsia',
