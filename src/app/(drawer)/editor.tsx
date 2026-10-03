@@ -194,6 +194,7 @@ export default function TattooEditorScreen() {
       return (
         <BodyModelViewer
           modelUrl={model.uri}
+          silhouette={proposal.silhouette}
           textureUrl={sketchDataUri}
           zone={proposal.bodyZone}
           size={proposal.placement.scale}

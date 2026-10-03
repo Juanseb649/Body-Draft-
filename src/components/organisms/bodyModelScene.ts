@@ -164,16 +164,28 @@ export function bodyModelHtml({
         return t;
       }
 
-      /** Punto y normal de la zona, lanzando su rayo contra la malla. */
+      /**
+       * Punto y normal de la zona, lanzando su rayo contra la malla.
+       *
+       * Vale el primer impacto, sin filtrar: los rayos vienen medidos
+       * sobre esta misma malla y comprobados uno a uno por
+       * tools/build-body-anchors.mjs, que no deja pasar ninguno que no
+       * caiga en el miembro que dice su nombre. Antes habia que
+       * descartar impactos a mano, porque el rayo de las costillas se
+       * comia primero el brazo.
+       */
       function hitFor(zoneKey) {
-        const anchor = ANCHORS[zoneKey] || ANCHORS.forearm;
+        const anchor = ANCHORS[zoneKey];
+        if (!anchor) {
+          // Antes se caia a 'forearm' en silencio, de modo que una zona
+          // mal escrita se veia como un tatuaje en el antebrazo.
+          post({ type: 'error', message: 'Zona desconocida: ' + zoneKey });
+          return null;
+        }
         const from = new THREE.Vector3().fromArray(anchor.from);
         const to = new THREE.Vector3().fromArray(anchor.to);
         const ray = new THREE.Raycaster(from, to.clone().sub(from).normalize(), 0, 10);
-        const hits = ray.intersectObject(body, true);
-
-        // En el torso, el primer impacto desde el costado es el BRAZO.
-        const hit = hits.find((h) => anchor.maxAbsX === undefined || Math.abs(h.point.x) <= anchor.maxAbsX) || hits[0];
+        const hit = ray.intersectObject(body, true)[0];
         if (!hit) return null;
 
         const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
@@ -325,17 +337,31 @@ export function bodyModelHtml({
 
           placeDecal();
         },
+        // Las ordenes que no cambian nada se descartan. La app vuelve a
+        // mandar el estado entero cuando la escena avisa de que esta
+        // lista, y sin estas guardas eso reconstruiria el decal tres
+        // veces seguidas nada mas abrir.
         setSize(value) {
           if (Math.abs(value - current.size) < 0.005) return;
           current.size = value;
           placeDecal();
         },
-        setRotation(deg) { current.rotation = deg; placeDecal(); },
+        setRotation(deg) {
+          if (deg === current.rotation) return;
+          current.rotation = deg;
+          placeDecal();
+        },
         setOpacity(value) {
+          if (value === current.opacity) return;
           current.opacity = value;
           if (decal) decal.material.opacity = value;
         },
-        setCutout(value) { current.cutout = value; texture = buildTexture(); placeDecal(); },
+        setCutout(value) {
+          if (value === current.cutout) return;
+          current.cutout = value;
+          texture = buildTexture();
+          placeDecal();
+        },
       };
 
       // --- barra de recorrido ----------------------------------------

@@ -65,7 +65,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectDesign: (designId) => set({ designId }),
   setZone: (bodyZone) => set({ bodyZone }),
-  setSilhouette: (silhouette) => set({ silhouette }),
+
+  // Cambiar de maniquin olvida la zona: es otro cuerpo, en otra pose, y
+  // la zona que estaba enfocada no tiene por que caer en el mismo sitio
+  // del nuevo. Se vuelve a ver entero para que el usuario elija sobre
+  // el cuerpo que va a mirar.
+  setSilhouette: (silhouette) => set({ silhouette, bodyZone: undefined }),
 
   // Un solo `set` para todo el gesto: mover, girar y escalar llegan
   // juntos desde DesignOverlay al soltar el dedo, no frame a frame.

@@ -44,6 +44,32 @@ Hay tests que comprueban todo esto en
 orientación de las caras y coherencia del bobinado. Si importas un
 modelo nuevo, córrelos.
 
+## Al cambiar un modelo: regenera los anclajes
+
+Los botones de zona del cuerpo (Antebrazo, Pantorrilla...) no mueven la
+cámara a unas coordenadas escritas a mano: lanzan un rayo medido sobre
+**esa** malla. La tabla la calcula una herramienta y vive en
+`src/models/bodyZoneAnchors.generated.ts`:
+
+```bash
+node tools/build-body-anchors.mjs
+```
+
+La herramienta corta cada modelo en horizontal, sigue el eje del brazo
+y de la pierna sección a sección, coloca cada zona a una fracción de
+ese eje y **comprueba cada rayo contra la malla** antes de escribirlo.
+Si un rayo no llega a la zona que dice su nombre, falla en vez de
+escribir un anclaje malo.
+
+La convención importa aquí: la tabla da por hecho que el modelo cumple
+lo de arriba y que está de pie con los brazos hacia abajo. Un maniquí
+en cruz, con los brazos horizontales, no se puede seguir así.
+
+No vale con regenerar y confiar: `src/models/__tests__/bodyZoneAnchors.test.ts`
+vuelve a lanzar los 24 rayos contra los `.glb`, corta la malla a la
+altura del impacto y comprueba sobre qué pieza ha caído — un miembro
+tiene que ser una pieza suelta, y el tronco la que cruza el eje.
+
 ## Si sale "Unable to resolve module ...mannequin-X.glb"
 
 `glb` **no** es una extensión de asset por defecto de Metro: la añade

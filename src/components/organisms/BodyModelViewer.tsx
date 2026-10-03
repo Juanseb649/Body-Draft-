@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { WebView } from 'react-native-webview';
 
-import type { BodyZone } from '../../models/bodyZone';
-import { ZONE_ANCHORS } from '../../models/bodyZoneAnchors';
+import type { BodySilhouette, BodyZone } from '../../models/bodyZone';
+import { anchorsFor } from '../../models/bodyZoneAnchors';
 import { bodyModelHtml } from './bodyModelScene';
 
 export interface BodyModelViewerProps {
   /** Data URI del .glb (ver bodyModelService). */
   modelUrl: string;
+  /**
+   * Cual de los dos maniquies es. Hace falta porque los rayos de cada
+   * zona estan medidos sobre su malla, y las dos poses no coinciden.
+   */
+  silhouette: BodySilhouette;
   /** Boceto a proyectar sobre la piel, o null si todavia no hay. */
   textureUrl: string | null;
   /** Zona enfocada, o undefined para ver el cuerpo entero. */
@@ -42,6 +47,7 @@ export interface BodyModelViewerProps {
  */
 export function BodyModelViewer({
   modelUrl,
+  silhouette,
   textureUrl,
   zone,
   size,
@@ -59,14 +65,14 @@ export function BodyModelViewer({
     () =>
       bodyModelHtml({
         modelUrl,
+        anchors: JSON.stringify(anchorsFor(silhouette)),
         textureUrl,
-        anchors: JSON.stringify(ZONE_ANCHORS),
         zone: zone ?? null,
         background: '#131015',
       }),
     // `zone` solo se usa como valor inicial; despues manda setZone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelUrl, textureUrl]
+    [modelUrl, silhouette, textureUrl]
   );
 
   const send = (expression: string) => {
@@ -94,6 +100,17 @@ export function BodyModelViewer({
         try {
           const message = JSON.parse(event.nativeEvent.data) as { type: string; message?: string; value?: number };
           if (message.type === 'error' && message.message) onError?.(message.message);
+          // Al cambiar de maniquin la escena se monta de cero con sus
+          // valores por defecto, y los `useEffect` de arriba no se
+          // vuelven a disparar porque sus dependencias no han cambiado:
+          // el tatuaje se veia al tamaño y al giro de fabrica mientras
+          // los deslizadores seguian marcando los del usuario.
+          if (message.type === 'ready') {
+            send(`window.bodyModel.setSize(${size})`);
+            send(`window.bodyModel.setRotation(${rotationDegrees})`);
+            send(`window.bodyModel.setOpacity(${opacity})`);
+            send(`window.bodyModel.setCutout(${cutout})`);
+          }
           // El pellizco cambia el tamaño dentro de la escena; sin esto
           // el deslizador de la hoja seguiria marcando el valor viejo.
           if (message.type === 'size' && typeof message.value === 'number') onSizeChange?.(message.value);

@@ -55,6 +55,21 @@ describe('useEditorStore', () => {
     expect(useEditorStore.getState().bodyZone).toBe('ribs');
   });
 
+  it('olvida la zona al cambiar de maniqui', () => {
+    // Es otro cuerpo, en otra pose: la zona que estaba enfocada no cae
+    // en el mismo sitio del nuevo maniquin, asi que se vuelve a ver
+    // entero y la elige el usuario. La colocacion si se conserva.
+    useEditorStore.getState().setSilhouette('masculine');
+    useEditorStore.getState().setZone('calf');
+    useEditorStore.getState().setPlacement({ scale: 1.5 });
+
+    useEditorStore.getState().setSilhouette('feminine');
+
+    expect(useEditorStore.getState().bodyZone).toBeUndefined();
+    expect(useEditorStore.getState().silhouette).toBe('feminine');
+    expect(useEditorStore.getState().placement.scale).toBe(1.5);
+  });
+
   it('resetEditor deja una propuesta en blanco con id nuevo', () => {
     const first = useEditorStore.getState().id;
     useEditorStore.getState().setPlacement({ scale: 2.4 });

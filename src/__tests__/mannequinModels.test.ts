@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readMannequin, type Mesh } from '../models/__fixtures__/mannequinMesh';
 
 /**
  * Los maniquies no se pueden revisar a ojo desde un test, pero si se
@@ -25,42 +24,6 @@ const MODELS = ['mannequin-masculine', 'mannequin-feminine'];
  */
 const NOT_WATERTIGHT = ['mannequin-feminine'];
 
-interface Mesh {
-  positions: Float32Array;
-  normals: Float32Array;
-  indices: Uint16Array | Uint32Array;
-  min: number[];
-  max: number[];
-}
-
-function readGlb(name: string): Mesh {
-  const buffer = readFileSync(resolve(__dirname, '../../assets/models', `${name}.glb`));
-
-  expect(buffer.readUInt32LE(0)).toBe(0x46546c67); // "glTF"
-  expect(buffer.readUInt32LE(8)).toBe(buffer.length);
-
-  const jsonLength = buffer.readUInt32LE(12);
-  const gltf = JSON.parse(buffer.subarray(20, 20 + jsonLength).toString('utf8'));
-  const bin = buffer.subarray(20 + jsonLength + 8);
-
-  const primitive = gltf.meshes[0].primitives[0];
-  const accessorData = (index: number) => {
-    const accessor = gltf.accessors[index];
-    const view = gltf.bufferViews[accessor.bufferView];
-    const Ctor = { 5126: Float32Array, 5123: Uint16Array, 5125: Uint32Array }[
-      accessor.componentType as 5126 | 5123 | 5125
-    ]!;
-    return new Ctor(bin.buffer, bin.byteOffset + (view.byteOffset ?? 0), view.byteLength / Ctor.BYTES_PER_ELEMENT);
-  };
-
-  return {
-    positions: accessorData(primitive.attributes.POSITION) as Float32Array,
-    normals: accessorData(primitive.attributes.NORMAL) as Float32Array,
-    indices: accessorData(primitive.indices) as Uint16Array | Uint32Array,
-    min: gltf.accessors[primitive.attributes.POSITION].min,
-    max: gltf.accessors[primitive.attributes.POSITION].max,
-  };
-}
 
 /**
  * Agrupa los triangulos en piezas conexas (comparten vertices). Los
@@ -115,7 +78,7 @@ function signedVolume(mesh: Mesh, triangles: number[]): number {
 }
 
 describe.each(MODELS)('%s.glb', (name) => {
-  const mesh = readGlb(name);
+  const mesh = readMannequin(name);
 
   it('mide 1,80 m y tiene los pies en el suelo', () => {
     expect(mesh.max[1] - mesh.min[1]).toBeCloseTo(1.8, 2);
