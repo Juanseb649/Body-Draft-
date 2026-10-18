@@ -544,3 +544,50 @@ dato es compartido entre cuentas, no local a una.
   `eas submit`, `eas update`) para compilar y firmar en la nube sin Xcode
   ni Android Studio locales, y publicar en TestFlight/Play Store — Expo Go
   es solo para desarrollo, no para el build final.
+
+---
+
+## 13. Lo social de un diseno, y el escaneo de la zona en la camara
+
+**Comentar, dar me gusta y agendar desde un diseno.** Cada trabajo
+publicado por un tatuador tiene su detalle (`app/designs/[id].tsx`):
+foto, tatuador, me gusta, comentarios publicos y "Agendar este
+diseño", que abre el calendario de siempre con `?designId=`. No es
+mensajeria (se quito a pedido del usuario, seccion 12): un comentario
+lo lee cualquiera que vea el diseno.
+
+- Datos: `design_likes` y `design_comments` en Supabase
+  (`20261018120000_design_likes_comments.sql`), con RLS: cada quien
+  escribe solo como si mismo; un comentario lo borra su autor o el
+  dueno del diseno; no hay update. El nombre del autor lo copia un
+  trigger desde `profiles` (la RLS de `profiles` no deja a un cliente
+  leer a otro, asi que un join devolveria vacio). La cita guarda
+  `appointments.design_id`, y otro trigger exige que el diseno sea del
+  mismo tatuador. Tests pgTAP en `supabase/tests/database/`.
+- Capas: `models/designSocial.ts` (validacion, contadores, fechas
+  relativas) → `data/socialRepository.ts` → `controllers/useDesignSocialStore.ts`
+  (me gusta optimista con rollback; el comentario NO es optimista,
+  porque el nombre del autor lo decide la base).
+- Responsive: `theme/layout.ts` (`useResponsive`) da 2/3/4 columnas en
+  telefono/tableta/web, ancho maximo en web, y detalle en dos columnas
+  desde 700 px. Las pantallas lo leen en vez de fijar porcentajes.
+
+**Escaneo de la zona (Crea, modo camara).** No hay deteccion
+automatica del cuerpo: Expo Go no trae un modelo de vision, y meter uno
+obligaria a un development build. En su lugar:
+
+1. En vivo, `molecules/ScanFrame.tsx` dibuja un recuadro guia con la
+   forma de la zona elegida (`models/zoneScan.ts` → `scanFrameFor`).
+2. Al disparar, la foto se abre ya acercada a ese recuadro
+   (`viewToFit`): se trabaja sobre la piel, no sobre todo el cuadro.
+3. Sobre la foto (`organisms/ZoneScanStage.tsx`): **Boceto** mueve el
+   diseno, **Ampliar** acerca hacia los dedos y recorre, **Perfilar**
+   dibuja el contorno del tatuaje en neon con un dedo (dos dedos siguen
+   haciendo zoom). Foto, boceto y trazos estan en el mismo contenedor
+   con zoom, y los trazos se guardan en coordenadas de la foto
+   (`screenToContent`), asi que nada se despega al acercar.
+
+El zoom y los trazos son estado de VISTA (`useZoneScanStore`): no se
+guardan en la propuesta ni viajan a la IA. Si se quiere conservar el
+perfil, el siguiente paso es guardarlo en `TattooProposal` o
+exportarlo como imagen.
