@@ -1,11 +1,22 @@
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
 import { NeonSwoosh } from '../atoms/NeonSwoosh';
 import { NeonText } from '../atoms/NeonText';
 import { fonts } from '../../theme';
 
+/**
+ * Cuanto ocupa a lo ancho el logo apilado, en multiplos de `size`,
+ * contando lo que la cursiva se sale de su caja (la barra de la "t" de
+ * "Draft" y el bucle de la "B"). Medido en el navegador: la caja mide
+ * ~3,5×size y la tinta se sale ~0,3×size mas.
+ */
+const STACKED_WIDTH_RATIO = 3.8;
+
+/** Separacion minima del logo con los bordes de la pantalla. */
+const EDGE = 16;
+
 export function BodyDraftLogo({
-  size = 112,
+  size: requestedSize = 112,
   variant = 'stacked',
   style,
 }: {
@@ -13,6 +24,12 @@ export function BodyDraftLogo({
   variant?: 'stacked' | 'inline';
   style?: StyleProp<ViewStyle>;
 }) {
+  const { width } = useWindowDimensions();
+  // Antes el tamaño era fijo: a 104 en un telefono de 375 de ancho la
+  // "t" de "Draft" quedaba cortada contra el borde. Ahora nunca es mas
+  // ancho que la pantalla.
+  const size =
+    variant === 'stacked' ? Math.min(requestedSize, (width - EDGE * 2) / STACKED_WIDTH_RATIO) : requestedSize;
   const s = size / 112;
   // lineHeight 1.3x: la fuente cursiva Sacramento tiene bucles altos que un
   // line-height cercano al fontSize recorta (se veia como un logo mal cortado).
