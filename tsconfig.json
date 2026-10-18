@@ -6,8 +6,5 @@
       "jest",
       "node"
     ]
-  },
-  // La Edge Function corre en Deno (imports .ts, jsr:, npm:): tiene su propio
-  // chequeo con `npx deno check` / `npx deno test`, no el de la app.
-  "exclude": ["node_modules", "supabase/functions"]
+  }
 }

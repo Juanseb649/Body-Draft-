@@ -14,6 +14,7 @@
 // una llamada de verdad sin mockear, fallaria en vez de escribir datos.
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://proyecto-de-prueba.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-key-de-prueba';
+process.env.EXPO_PUBLIC_GEMINI_API_KEY = 'gemini-key-de-prueba';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
