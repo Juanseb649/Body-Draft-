@@ -19,7 +19,7 @@ const DEMO = { email: 'nora.vega@bodydraft.demo', password: 'BodyDraft2026!' };
 
 /** Lo que la app lee o escribe (ver src/data/*.ts). */
 const TABLES = ['profiles', 'designs', 'appointments', 'design_likes', 'design_comments'];
-const STORAGE_BUCKETS = ['portfolio'];
+const STORAGE_BUCKETS = ['portfolio', 'avatars'];
 
 function readEnv() {
   const out = {};
@@ -98,13 +98,15 @@ async function main() {
   }
 
   // Columnas que agregan migraciones posteriores a la tabla.
-  const designId = await call('/rest/v1/appointments?select=design_id&limit=1');
-  report(
-    'REST (anon)',
-    'appointments.design_id',
-    designId.status === 200,
-    designId.status === 200 ? 'existe' : 'NO EXISTE (20261018120000_design_likes_comments.sql)',
-  );
+  const COLUMNS = [
+    ['appointments', 'design_id', '20261018120000_design_likes_comments.sql'],
+    ['profiles', 'avatar_url', '20261018200000_profile_names_and_avatars.sql'],
+    ['design_comments', 'author_avatar_url', '20261018200000_profile_names_and_avatars.sql'],
+  ];
+  for (const [table, column, migration] of COLUMNS) {
+    const r = await call(`/rest/v1/${table}?select=${column}&limit=1`);
+    report('REST (anon)', `${table}.${column}`, r.status === 200, r.status === 200 ? 'existe' : `NO EXISTE (${migration})`);
+  }
 
   // Funcion que se menciono para crear citas; la app hoy no la usa.
   const rpc = await call('/rest/v1/rpc/book_appointment', { method: 'POST', body: {} });
@@ -114,7 +116,10 @@ async function main() {
   for (const bucket of STORAGE_BUCKETS) {
     const r = await call(`/storage/v1/object/list/${bucket}`, { method: 'POST', body: { prefix: '', limit: 1 } });
     const ok = r.status === 200 || r.status === 400 || r.status === 401 || r.status === 403;
-    report('Storage', `bucket ${bucket}`, ok && r.json?.error !== 'Bucket not found', `${r.status}${r.json?.message ? ` · ${r.json.message}` : ''}`);
+    // Sin sesion, listar un bucket que no existe tambien puede dar 200 con
+    // una lista vacia: esto prueba que Storage responde, no que el bucket
+    // exista. Para eso, --demo o el dashboard.
+    report('Storage', `bucket ${bucket}`, ok && r.json?.error !== 'Bucket not found', `${r.status}${r.json?.message ? ` · ${r.json.message}` : ''} (responde; sin sesion no confirma que exista)`);
   }
 
   if (process.argv.includes('--demo')) {
