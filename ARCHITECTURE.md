@@ -591,3 +591,24 @@ El zoom y los trazos son estado de VISTA (`useZoneScanStore`): no se
 guardan en la propuesta ni viajan a la IA. Si se quiere conservar el
 perfil, el siguiente paso es guardarlo en `TattooProposal` o
 exportarlo como imagen.
+
+**El tatuaje se aplica EN la piel de la foto** (como en el maniquin 3D,
+pero con fotos). El recuadro de la zona es el miembro: su centro es el
+eje y su ancho el diametro de un cilindro. `organisms/SkinWrapView.tsx`
+(canvas dentro de un WebView, escena en `skinWrapScene.ts`, sin CDN)
+envuelve el boceto sobre ese cilindro (`models/skinWrap.ts` →
+`wrapColumn`: x' = R·sen(d/R), columnas que se estrechan y se apagan al
+girar la piel), con curvatura, grosor e inclinacion ajustables, y lo
+funde con la foto por multiplicacion para que conserve la luz y la
+textura de la piel. Tinta negra, color (apagado y teñido por el tono de
+piel medido en el recuadro) u original. Se ve ya en vivo, sobre la
+camara; en la foto, "Aplicar a la foto" guarda el resultado en
+documentos (`saveDataUriToDocuments`) como `renderedImageUrl` de la
+propuesta. La composicion con IA queda como opcion aparte.
+
+**Login** (`app/auth/login.tsx`): arranca identico al splash nativo y
+se abre (`molecules/SplashHandoff.tsx`); detras, la pared de flash del
+estudio (`organisms/FlashWall.tsx`, motivos en `flashSheet.ts`) se tatua
+trazo a trazo. Bienvenida y login estan en `Stack.Protected` con
+`guard={!session}` (app/_layout.tsx): al iniciar sesion salen del
+historial, asi que el gesto de volver no puede regresar al login.
