@@ -338,9 +338,9 @@ export default function TattooEditorScreen() {
 
         <View style={[styles.topBar, { top: insets.top + 8 }]}>
           <MenuButton />
-          <View style={styles.titleGroup}>
-            <SectionIcon section="crea" size={30} />
-            <Text style={[typo.logoSection, styles.title]}>Crea</Text>
+          {/* Solo el logo de la seccion, centrado (sin el nombre al lado). */}
+          <View style={styles.titleGroup} accessible accessibilityRole="header" accessibilityLabel="Crea">
+            <SectionIcon section="crea" size={40} />
           </View>
           <Pressable
             onPress={() => setIntroOpen(true)}
@@ -706,10 +706,11 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    titleGroup: { flexDirection: 'row', alignItems: 'center' },
+    // Centrado sobre la barra entera, no entre los dos botones: asi
+    // queda en el medio exacto aunque los botones no midan lo mismo.
+    titleGroup: { position: 'absolute', left: 0, right: 0, alignItems: 'center', pointerEvents: 'none' },
     // Encima de la camara y del visor 3D el fondo siempre es oscuro,
-    // asi que estos dos van en blanco en los dos temas.
-    title: { color: '#FFFFFF', fontSize: 32, lineHeight: 32 * 1.3, marginLeft: 6 },
+    // asi que el boton va en blanco translucido en los dos temas.
     roundButton: {
       width: 40,
       height: 40,
