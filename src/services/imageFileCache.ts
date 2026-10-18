@@ -35,10 +35,23 @@ export function toUploadFile(uri: string, fallbackName: string): UploadFile {
     return { uri, name: file.name || fallbackName, type: file.type || 'image/jpeg' };
   }
 
+  return writeDataUri(uri, new Directory(Paths.cache, CACHE_FOLDER), fallbackName);
+}
+
+/**
+ * Guarda una imagen generada en el telefono (data URI) como archivo
+ * propio de la app, en documentos y no en cache: es parte de una
+ * propuesta guardada, y el sistema puede vaciar la cache cuando quiera.
+ * Devuelve su `file://`.
+ */
+export function saveDataUriToDocuments(dataUri: string, folderName: string, fallbackName: string): string {
+  return writeDataUri(dataUri, new Directory(Paths.document, folderName), fallbackName).uri;
+}
+
+function writeDataUri(uri: string, folder: Directory, fallbackName: string): UploadFile {
   const { mimeType, data } = readInlineSync(uri);
   const extension = EXTENSION_BY_MIME[mimeType] ?? 'png';
 
-  const folder = new Directory(Paths.cache, CACHE_FOLDER);
   if (!folder.exists) folder.create({ intermediates: true });
 
   const name = `${fallbackName}-${Date.now()}.${extension}`;

@@ -77,7 +77,18 @@ function CutoutImage({ uri }: { uri: string }) {
  * evento el desplazamiento crecia en progresion y el boceto salia
  * disparado fuera de la pantalla.
  */
-export function DesignOverlay({ design }: { design?: TattooDesign }) {
+export function DesignOverlay({
+  design,
+  guide = false,
+}: {
+  design?: TattooDesign;
+  /**
+   * Modo guia: el boceto de verdad lo dibuja otra capa (aplicado sobre
+   * la piel, ver SkinWrapView). Aqui queda solo un fantasma con borde
+   * punteado, que es lo que se agarra para moverlo, girarlo y escalarlo.
+   */
+  guide?: boolean;
+}) {
   const placement = useEditorStore((s) => s.placement);
   const hideBackground = useEditorStore((s) => s.hideBackground);
   const setPlacement = useEditorStore((s) => s.setPlacement);
@@ -218,7 +229,7 @@ export function DesignOverlay({ design }: { design?: TattooDesign }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none" onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.wrapper, style, { opacity: placement.opacity }]}>
+        <Animated.View style={[styles.wrapper, style, guide ? styles.guide : { opacity: placement.opacity }]}>
           {hideBackground ? (
             <CutoutImage uri={displayImageUrl(design)} />
           ) : (
@@ -239,4 +250,13 @@ const styles = StyleSheet.create({
     marginTop: -BASE_SIZE / 2,
   },
   design: { width: BASE_SIZE, height: BASE_SIZE },
+  // Casi invisible pero con borde: se ve donde agarrarlo sin tapar
+  // el tatuaje aplicado que hay debajo.
+  guide: {
+    opacity: 0.22,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#FFFFFF',
+    borderRadius: 12,
+  },
 });

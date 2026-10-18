@@ -4,13 +4,15 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
+import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { useZoneScanStore, type Stroke } from '../../controllers/useZoneScanStore';
-import type { TattooDesign } from '../../models/tattooDesign';
-import { clampView, screenToContent, strokeToPath, type Point, type ScanView } from '../../models/zoneScan';
+import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
+import { clampView, screenToContent, strokeToPath, type Point, type Rect, type ScanView } from '../../models/zoneScan';
 import { flatToneColor, neonLightCore, neonLightHaloColor, useTheme } from '../../theme';
 import { duration, easing } from '../../theme/motion';
 import { DesignOverlay } from '../molecules/DesignOverlay';
+import { SkinWrapView } from './SkinWrapView';
 
 /** Grosor del perfil en pantalla, igual con o sin zoom. */
 const LINE_WIDTH = 3;
@@ -35,6 +37,10 @@ export function ZoneScanStage({
   design,
   showDesign,
   fit,
+  frame,
+  exportRequest,
+  onExported,
+  onError,
 }: {
   uri: string;
   design?: TattooDesign;
@@ -42,10 +48,19 @@ export function ZoneScanStage({
   showDesign: boolean;
   /** `cover` para la foto (asi se ve como en la camara en vivo). */
   fit: 'cover' | 'contain';
+  /** Recuadro de la zona: es el miembro sobre el que se envuelve el boceto. */
+  frame?: Rect;
+  exportRequest?: number;
+  onExported?: (dataUri: string) => void;
+  onError?: (message: string) => void;
 }) {
   const { scheme } = useTheme();
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
-  const { tool, view, strokes, current, setView, beginStroke, extendStroke, endStroke } = useZoneScanStore();
+  const { tool, view, strokes, current, skin, onSkin, setView, beginStroke, extendStroke, endStroke } =
+    useZoneScanStore();
+  const placement = useEditorStore((s) => s.placement);
+  const hideBackground = useEditorStore((s) => s.hideBackground);
+  const wrapOnSkin = showDesign && onSkin && Boolean(design);
 
   const stageW = useSharedValue(0);
   const stageH = useSharedValue(0);
@@ -175,9 +190,22 @@ export function ZoneScanStage({
       <View style={styles.fill} onLayout={onLayout} collapsable={false}>
         <Animated.View style={[styles.fill, zoomStyle]}>
           <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode={fit} />
+          {wrapOnSkin && design && (
+            <SkinWrapView
+              photoUri={uri}
+              designUri={displayImageUrl(design)}
+              placement={placement}
+              cutout={hideBackground}
+              frame={frame}
+              settings={skin}
+              exportRequest={exportRequest}
+              onExported={onExported}
+              onError={onError}
+            />
+          )}
           {showDesign && (
             <View style={StyleSheet.absoluteFill} pointerEvents={tool === 'boceto' ? 'box-none' : 'none'}>
-              <DesignOverlay design={design} />
+              <DesignOverlay design={design} guide={wrapOnSkin} />
             </View>
           )}
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">

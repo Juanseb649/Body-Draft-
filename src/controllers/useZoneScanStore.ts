@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { BodyZone } from '../models/bodyZone';
+import { defaultSkinWrap, type SkinWrapSettings } from '../models/skinWrap';
 import {
   IDENTITY_VIEW,
   scanFrameFor,
@@ -38,9 +39,20 @@ interface ZoneScanState {
   /** Trazo que el dedo esta dibujando ahora mismo. */
   current?: Stroke;
   tone: StrokeTone;
+  /**
+   * Como se aplica el boceto sobre la piel (curvatura, ancho e
+   * inclinacion del miembro, tinta). Lo usan la camara en vivo y la foto.
+   */
+  skin: SkinWrapSettings;
+  /** true: el boceto se ve aplicado en la piel; false: plano, como imagen. */
+  onSkin: boolean;
 
   setTool: (tool: ScanTool) => void;
   setTone: (tone: StrokeTone) => void;
+  setSkin: (patch: Partial<SkinWrapSettings>) => void;
+  setOnSkin: (value: boolean) => void;
+  /** Vuelve a la curvatura de partida de la zona (al cambiar de zona). */
+  resetSkinFor: (zone?: BodyZone) => void;
   setView: (view: ScanView) => void;
   /** Acerca la foto hasta que el recuadro de la zona llene el escenario. */
   focusZone: (stage: Size, zone?: BodyZone) => void;
@@ -51,7 +63,10 @@ interface ZoneScanState {
   endStroke: () => void;
   undo: () => void;
   clearStrokes: () => void;
-  /** Todo a cero: se llama al descartar la foto. */
+  /**
+   * Todo a cero al descartar la foto. La forma de la piel se conserva:
+   * es del brazo, no de la foto, y repetirla no cambia el brazo.
+   */
   reset: () => void;
 }
 
@@ -71,9 +86,15 @@ const initial = {
  */
 export const useZoneScanStore = create<ZoneScanState>((set, get) => ({
   ...initial,
+  skin: defaultSkinWrap(),
+  onSkin: true,
 
   setTool: (tool) => set({ tool, current: undefined }),
   setTone: (tone) => set({ tone }),
+  setSkin: (patch) => set({ skin: { ...get().skin, ...patch } }),
+  setOnSkin: (onSkin) => set({ onSkin }),
+  // La tinta elegida no depende de la zona: se conserva.
+  resetSkinFor: (zone) => set({ skin: { ...defaultSkinWrap(zone), ink: get().skin.ink } }),
   setView: (view) => set({ view }),
 
   focusZone: (stage, zone) => {

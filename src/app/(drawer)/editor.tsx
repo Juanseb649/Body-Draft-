@@ -35,7 +35,9 @@ import {
   type BodyZone,
 } from '../../models/bodyZone';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
+import { AXIS_RANGE, CURVATURE_RANGE, WIDTH_SCALE_RANGE, type InkMode } from '../../models/skinWrap';
 import { scanFrameFor, type Size } from '../../models/zoneScan';
+import { saveDataUriToDocuments } from '../../services/imageFileCache';
 import { type as typo, useTheme } from '../../theme';
 
 type Mode = 'camera' | 'mannequin';
@@ -44,6 +46,12 @@ const SILHOUETTE_LABEL: Record<BodySilhouette, string> = {
   masculine: 'Masculino',
   feminine: 'Femenino',
 };
+
+const INK_OPTIONS: { value: InkMode; label: string }[] = [
+  { value: 'tinta', label: 'Tinta negra' },
+  { value: 'color', label: 'Color' },
+  { value: 'original', label: 'Original' },
+];
 
 const SCAN_TOOLS: { value: ScanTool; label: string }[] = [
   { value: 'boceto', label: 'Boceto' },
@@ -99,6 +107,16 @@ export default function TattooEditorScreen() {
   const scanLabel = proposal.bodyZone
     ? `Encuadra tu ${bodyZoneLabel(proposal.bodyZone).toLowerCase()}`
     : 'Encuadra la zona del tatuaje';
+  const [exportRequest, setExportRequest] = useState(0);
+  const [isApplying, setIsApplying] = useState(false);
+  const [skinError, setSkinError] = useState<string | undefined>(undefined);
+  const { resetSkinFor } = scan;
+
+  // Cada zona parte con su curvatura (un antebrazo es casi un
+  // cilindro, una espalda casi plana); el usuario la ajusta despues.
+  useEffect(() => {
+    resetSkinFor(proposal.bodyZone);
+  }, [proposal.bodyZone, resetSkinFor]);
   const [consentOpen, setConsentOpen] = useState(false);
   // La primera vez se abre solo. Despues queda a un toque del boton (i).
   const [introOpen, setIntroOpen] = useState(!seenIntro);
@@ -163,6 +181,28 @@ export default function TattooEditorScreen() {
     setStageSize({ width, height });
   };
 
+  /** Pide al WebView la foto con el tatuaje ya aplicado (ver onSkinExported). */
+  const applyToPhoto = () => {
+    setSkinError(undefined);
+    setIsApplying(true);
+    setExportRequest((n) => n + 1);
+  };
+
+  const onSkinExported = (dataUri: string) => {
+    try {
+      proposal.applySkinComposite(saveDataUriToDocuments(dataUri, 'en-la-piel', 'propuesta'));
+    } catch (e) {
+      setSkinError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const onSkinError = (message: string) => {
+    setIsApplying(false);
+    setSkinError(message);
+  };
+
   const composeWithAI = async () => {
     if (!design) return;
     // El consentimiento se pide una vez y queda guardado; sin el, ni
@@ -203,6 +243,10 @@ export default function TattooEditorScreen() {
               design={design}
               showDesign={!proposal.renderedImageUrl}
               fit={proposal.renderedImageUrl ? 'contain' : 'cover'}
+              frame={scanFrame}
+              exportRequest={exportRequest}
+              onExported={onSkinExported}
+              onError={onSkinError}
             />
             {proposal.isRendering && (
               <View style={styles.rendering}>
@@ -344,8 +388,95 @@ export default function TattooEditorScreen() {
           </Pressable>
         </View>
 
+        {mode === 'camera' && design && !proposal.renderedImageUrl && (
+          <>
+            <Text style={styles.label}>Sobre la piel</Text>
+            <Segmented
+              value={scan.onSkin ? 'piel' : 'plano'}
+              onChange={(v) => scan.setOnSkin(v === 'piel')}
+              options={[
+                { value: 'piel', label: 'En la piel' },
+                { value: 'plano', label: 'Plano' },
+              ]}
+            />
+            {scan.onSkin && (
+              <>
+                <Text style={styles.hint}>
+                  El recuadro es tu {proposal.bodyZone ? bodyZoneLabel(proposal.bodyZone).toLowerCase() : 'zona'}:
+                  el diseño se envuelve en su curva y toma la luz de tu piel. Encuádralo para que el recuadro
+                  abrace el miembro.
+                </Text>
+                <Segmented value={scan.skin.ink} onChange={(ink) => scan.setSkin({ ink })} options={INK_OPTIONS} />
+
+                <View style={styles.sliderLabel}>
+                  <Text style={[typo.bodyStrong, { color: colors.text }]}>Curvatura</Text>
+                  <Text style={styles.sliderValue}>{Math.round(scan.skin.curvature * 100)} %</Text>
+                </View>
+                <Slider
+                  minimumValue={CURVATURE_RANGE.min}
+                  maximumValue={CURVATURE_RANGE.max}
+                  value={scan.skin.curvature}
+                  onSlidingComplete={(curvature) => scan.setSkin({ curvature })}
+                  minimumTrackTintColor={colors.primary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.primary}
+                  accessibilityLabel="Curvatura de la zona"
+                />
+
+                <View style={styles.sliderLabel}>
+                  <Text style={[typo.bodyStrong, { color: colors.text }]}>Grosor de la zona</Text>
+                  <Text style={styles.sliderValue}>{Math.round(scan.skin.widthScale * 100)} %</Text>
+                </View>
+                <Slider
+                  minimumValue={WIDTH_SCALE_RANGE.min}
+                  maximumValue={WIDTH_SCALE_RANGE.max}
+                  value={scan.skin.widthScale}
+                  onSlidingComplete={(widthScale) => scan.setSkin({ widthScale })}
+                  minimumTrackTintColor={colors.secondary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.secondary}
+                  accessibilityLabel="Grosor del miembro"
+                />
+
+                <View style={styles.sliderLabel}>
+                  <Text style={[typo.bodyStrong, { color: colors.text }]}>Inclinación</Text>
+                  <Text style={styles.sliderValue}>{Math.round(scan.skin.axisDegrees)}°</Text>
+                </View>
+                <Slider
+                  minimumValue={AXIS_RANGE.min}
+                  maximumValue={AXIS_RANGE.max}
+                  step={1}
+                  value={scan.skin.axisDegrees}
+                  onSlidingComplete={(axisDegrees) => scan.setSkin({ axisDegrees })}
+                  minimumTrackTintColor={colors.secondary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.secondary}
+                  accessibilityLabel="Inclinación del miembro en la foto"
+                />
+              </>
+            )}
+          </>
+        )}
+
         {mode === 'camera' && proposal.cameraSnapshotUrl && (
           <>
+            {proposal.renderedImageUrl ? (
+              <AppButton label="Volver a ajustar" variant="secondary" size="M" onPress={proposal.clearRenderedImage} />
+            ) : (
+              <>
+                <AppButton
+                  label="Aplicar a la foto"
+                  onPress={applyToPhoto}
+                  isLoading={isApplying}
+                  disabled={!design || !scan.onSkin}
+                />
+                <Text style={styles.hint}>
+                  Se hace aquí, en tu teléfono, y es lo que se guarda con la propuesta.
+                </Text>
+              </>
+            )}
+            {skinError && <Text style={styles.error}>{skinError}</Text>}
+
             <Text style={styles.label}>Sobre la foto</Text>
             <Segmented value={scan.tool} onChange={scan.setTool} options={SCAN_TOOLS} />
             <Text style={styles.hint}>{SCAN_TOOL_HINT[scan.tool]}</Text>
@@ -391,7 +522,8 @@ export default function TattooEditorScreen() {
             )}
 
             <AppButton
-              label={proposal.renderedImageUrl ? 'Rehacer la composición' : 'Ver resultado realista'}
+              label={proposal.renderedImageUrl ? 'Rehacer con IA' : 'Resultado realista con IA'}
+              variant="secondary"
               onPress={composeWithAI}
               isLoading={proposal.isRendering}
               disabled={!design}
@@ -599,5 +731,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       backgroundColor: colors.surfaceRaised,
     },
     sliderLabel: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+    sliderValue: { ...typo.bodyStrong, color: colors.textMuted, fontVariant: ['tabular-nums'] },
   });
 }

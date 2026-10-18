@@ -28,6 +28,14 @@ interface EditorState extends TattooProposal {
   /** Descarta la captura y vuelve a la camara en vivo. */
   discardCameraSnapshot: () => void;
   /**
+   * Guarda como resultado la foto con el tatuaje ya aplicado en la piel
+   * dentro del telefono (SkinWrapView). Ocupa el mismo lugar que el
+   * resultado de la IA: es lo que se guarda con la propuesta.
+   */
+  applySkinComposite: (uri: string) => void;
+  /** Quita el resultado (local o de la IA) y vuelve a ajustar sobre la foto. */
+  clearRenderedImage: () => void;
+  /**
    * Manda la captura y el boceto a la IA para que lo componga sobre
    * la piel. Requiere consentimiento: lo comprueba la pantalla antes
    * de llamar aqui (ver settings.privacy.allowAiPhotoUpload).
@@ -96,6 +104,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   discardCameraSnapshot: () =>
     set({ cameraSnapshotUrl: undefined, renderedImageUrl: undefined, renderError: undefined }),
+
+  applySkinComposite: (uri) => set({ renderedImageUrl: uri, renderError: undefined }),
+  clearRenderedImage: () => set({ renderedImageUrl: undefined, renderError: undefined }),
 
   isRendering: false,
   renderError: undefined,
