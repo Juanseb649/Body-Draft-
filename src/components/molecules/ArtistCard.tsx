@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Artist } from '../../models/artist';
 import { flatToneColor, fonts, neonLightHaloColor, type as typo, useTheme, type GlowTone } from '../../theme';
 import { AppButton } from '../atoms/AppButton';
+import { Avatar } from '../atoms/Avatar';
 
 /** Molecula: fila de tatuador en la pantalla "Artistas". */
 export function ArtistCard({
@@ -31,16 +32,7 @@ export function ArtistCard({
           : [styles.row, pressed && { borderColor: core }]
       }
     >
-      <View
-        style={[
-          styles.avatar,
-          isLight
-            ? { borderColor: core, boxShadow: `0 0 10px ${neonLightHaloColor(tone, 0.6)}` }
-            : { borderColor: core },
-        ]}
-      >
-        <Text style={[styles.avatarLabel, { color: core }]}>{artist.name.charAt(0)}</Text>
-      </View>
+      <Avatar name={artist.name} imageUrl={artist.avatarUrl} size={48} tone={tone} />
       <View style={styles.info}>
         <Text style={styles.name}>{artist.name}</Text>
         <Text style={styles.specialty}>{artist.specialty}</Text>
@@ -66,15 +58,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    avatar: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      borderWidth: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarLabel: { fontFamily: fonts.logo, fontSize: 30, lineHeight: 36 },
     info: { flex: 1, gap: 1 },
     name: { ...typo.bodyStrong, color: colors.textStrong },
     specialty: { ...typo.caption, color: colors.textMuted },

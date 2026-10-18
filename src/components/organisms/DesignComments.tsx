@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { COMMENT_MAX_LENGTH, relativeTime, type DesignComment } from '../../models/designSocial';
-import { flatToneColor, fonts, type as typo, useTheme } from '../../theme';
+import { flatToneColor, type as typo, useTheme } from '../../theme';
+import { Avatar } from '../atoms/Avatar';
 import { Icon } from '../atoms/Icon';
 import { Spinner } from '../atoms/Spinner';
 
@@ -74,11 +75,7 @@ export function DesignComments({
         <View style={{ gap: 16 }}>
           {comments.map((comment) => (
             <View key={comment.id} style={styles.row}>
-              <View style={[styles.avatar, { borderColor: colors.secondary }]}>
-                <Text style={[styles.avatarLabel, { color: colors.secondary }]}>
-                  {comment.authorName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              <Avatar name={comment.authorName} imageUrl={comment.authorAvatarUrl} size={36} tone="blue" shape="rounded" />
               <View style={{ flex: 1 }}>
                 <View style={styles.meta}>
                   <Text style={[typo.bodyStrong, { color: colors.textStrong, fontSize: 14 }]} numberOfLines={1}>
@@ -156,7 +153,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    avatarLabel: { fontFamily: fonts.bodyBold, fontSize: 15 },
     meta: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
     deleteButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
     skeletonLine: { height: 10, borderRadius: 5, backgroundColor: colors.surfaceRaised },

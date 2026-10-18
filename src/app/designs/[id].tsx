@@ -4,6 +4,7 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
+import { Avatar } from '../../components/atoms/Avatar';
 import { Icon } from '../../components/atoms/Icon';
 import { LikeButton } from '../../components/molecules/LikeButton';
 import { DesignComments } from '../../components/organisms/DesignComments';
@@ -97,9 +98,7 @@ export default function DesignDetailScreen() {
         accessibilityRole="link"
         accessibilityLabel={`Ver el perfil de ${artistName}`}
       >
-        <View style={[styles.artistAvatar, { borderColor: flatToneColor(scheme, 'fuchsia') }]}>
-          <Text style={[styles.artistInitial, { color: flatToneColor(scheme, 'fuchsia') }]}>{artistName.charAt(0)}</Text>
-        </View>
+        <Avatar name={artistName} imageUrl={item.artistAvatarUrl} size={44} />
         <View style={{ flex: 1 }}>
           <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>{artistName}</Text>
           <Text style={[typo.caption, { color: colors.textMuted }]}>Ver perfil y portafolio</Text>
@@ -230,15 +229,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: 18,
       backgroundColor: colors.surface,
     },
-    artistAvatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      borderWidth: 1.5,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    artistInitial: { fontFamily: fonts.logo, fontSize: 26, lineHeight: 34 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     bookBar: {
       position: 'absolute',
