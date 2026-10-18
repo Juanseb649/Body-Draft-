@@ -15,7 +15,6 @@ import { Segmented } from '../../components/atoms/Segmented';
 import { Spinner } from '../../components/atoms/Spinner';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
 import { CameraOverlay } from '../../components/organisms/CameraOverlay';
-import { AiPhotoConsentModal } from '../../components/organisms/AiPhotoConsentModal';
 import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
 import { ZoneScanStage } from '../../components/organisms/ZoneScanStage';
 import { useAuthStore } from '../../controllers/useAuthStore';
@@ -93,9 +92,6 @@ export default function TattooEditorScreen() {
   const seenIntro = useSettingsStore((s) => s.onboarding.seenCreateIntro);
   const markIntroSeen = useSettingsStore((s) => s.markCreateIntroSeen);
 
-  const allowAiPhoto = useSettingsStore((s) => s.privacy.allowAiPhotoUpload);
-  const setAllowAiPhoto = useSettingsStore((s) => s.setAllowAiPhotoUpload);
-
   const [mode, setMode] = useState<Mode>('camera');
   const [stageSize, setStageSize] = useState<Size>({ width: 0, height: 0 });
   const scan = useZoneScanStore();
@@ -119,7 +115,6 @@ export default function TattooEditorScreen() {
   useEffect(() => {
     resetSkinFor(proposal.bodyZone);
   }, [proposal.bodyZone, resetSkinFor]);
-  const [consentOpen, setConsentOpen] = useState(false);
   // La primera vez se abre solo. Despues queda a un toque del boton (i).
   const [introOpen, setIntroOpen] = useState(!seenIntro);
 
@@ -218,25 +213,6 @@ export default function TattooEditorScreen() {
   const onSkinError = (message: string) => {
     setIsApplying(false);
     setSkinError(message);
-  };
-
-  const composeWithAI = async () => {
-    if (!design) return;
-    // El consentimiento se pide una vez y queda guardado; sin el, ni
-    // se llega a construir la peticion.
-    if (!allowAiPhoto) {
-      setConsentOpen(true);
-      return;
-    }
-    await proposal.renderWithAI(displayImageUrl(design), bodyZoneLabel(proposal.bodyZone));
-  };
-
-  const acceptConsent = async () => {
-    setAllowAiPhoto(true);
-    setConsentOpen(false);
-    if (design) {
-      await proposal.renderWithAI(displayImageUrl(design), bodyZoneLabel(proposal.bodyZone));
-    }
   };
 
   const handleSave = async () => {
@@ -563,19 +539,6 @@ export default function TattooEditorScreen() {
             )}
 
             <AppButton
-              label={proposal.renderedImageUrl ? 'Rehacer con IA' : 'Resultado realista con IA'}
-              variant="secondary"
-              onPress={composeWithAI}
-              isLoading={proposal.isRendering}
-              disabled={!design}
-            />
-            <Text style={styles.hint}>
-              Una inteligencia artificial vuelve a dibujar la foto con el tatuaje ya integrado: sigue la forma de tu
-              cuerpo, la luz y el tono de tu piel. Para esto tu foto y tu boceto se envían a un servicio externo;
-              &quot;Aplicar a la foto&quot; y todo lo demás se hace dentro de tu teléfono.
-            </Text>
-            {proposal.renderError && <Text style={styles.error}>{proposal.renderError}</Text>}
-            <AppButton
               label="Repetir la foto"
               variant="secondary"
               size="M"
@@ -688,11 +651,6 @@ export default function TattooEditorScreen() {
       </ScrollView>
 
       <CreateIntroModal visible={introOpen} onClose={closeIntro} />
-      <AiPhotoConsentModal
-        visible={consentOpen}
-        onAccept={acceptConsent}
-        onCancel={() => setConsentOpen(false)}
-      />
     </View>
   );
 }

@@ -25,7 +25,7 @@ const STEPS: Step[] = [
   {
     icon: 'shutter',
     title: 'El resultado realista',
-    body: 'Cuando el encuadre te guste, haz la foto. Sobre ella puedes pedir que la IA aplique el tatuaje siguiendo la curvatura y la luz de tu piel, en vez de pegado plano. Para eso —y solo para eso— esa foto se envía a un servicio externo de inteligencia artificial: te lo pedimos antes, y puedes decir que no y quedarte con la vista previa, "Aplicar a la foto" y el maniquí, que funcionan dentro de tu teléfono.',
+    body: 'Cuando el encuadre te guste, haz la foto. Sobre ella el tatuaje sigue la curvatura de la zona y toma la luz de tu piel, y con "Aplicar a la foto" lo guardas así en tu propuesta. Todo pasa dentro de tu teléfono: la foto no se envía a ningún sitio.',
   },
   {
     icon: 'image',
