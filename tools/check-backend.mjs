@@ -18,7 +18,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DEMO = { email: 'nora.vega@bodydraft.demo', password: 'BodyDraft2026!' };
 
 /** Lo que la app lee o escribe (ver src/data/*.ts). */
-const TABLES = ['profiles', 'designs', 'appointments', 'design_likes', 'design_comments'];
+const TABLES = ['profiles', 'designs', 'appointments', 'design_likes', 'design_comments', 'ai_usage'];
 const STORAGE_BUCKETS = ['portfolio', 'avatars'];
 
 function readEnv() {
@@ -107,6 +107,15 @@ async function main() {
     const r = await call(`/rest/v1/${table}?select=${column}&limit=1`);
     report('REST (anon)', `${table}.${column}`, r.status === 200, r.status === 200 ? 'existe' : `NO EXISTE (${migration})`);
   }
+
+  // Edge Function de IA: OPTIONS no gasta nada ni pide sesion. 404 = sin desplegar.
+  const fn = await call('/functions/v1/ai', { method: 'OPTIONS' });
+  report(
+    'Edge Functions',
+    'ai',
+    fn.status === 200 || fn.status === 204,
+    fn.status === 404 ? 'NO DESPLEGADA (npx supabase functions deploy ai)' : `responde ${fn.status}`,
+  );
 
   // Funcion que se menciono para crear citas; la app hoy no la usa.
   const rpc = await call('/rest/v1/rpc/book_appointment', { method: 'POST', body: {} });
