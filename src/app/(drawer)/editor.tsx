@@ -571,8 +571,9 @@ export default function TattooEditorScreen() {
               disabled={!design}
             />
             <Text style={styles.hint}>
-              La IA aplica el tatuaje siguiendo la curvatura y la luz de tu piel. Tu foto se envía a Google para
-              esto; el resto de la app no sale del teléfono.
+              Una inteligencia artificial vuelve a dibujar la foto con el tatuaje ya integrado: sigue la forma de tu
+              cuerpo, la luz y el tono de tu piel. Para esto tu foto y tu boceto se envían a un servicio externo;
+              &quot;Aplicar a la foto&quot; y todo lo demás se hace dentro de tu teléfono.
             </Text>
             {proposal.renderError && <Text style={styles.error}>{proposal.renderError}</Text>}
             <AppButton

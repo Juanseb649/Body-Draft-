@@ -268,7 +268,7 @@ export default function SettingsScreen() {
             enterrado en "Privacidad y datos". */}
         <Row
           label="Resultado realista con IA"
-          hint="Envía la foto que tomes a Google para aplicar el tatuaje sobre tu piel"
+          hint="Permite enviar la foto que tomes a un servicio de inteligencia artificial para ver el tatuaje integrado en tu piel"
           right={
             <Switch
               value={settings.privacy.allowAiPhotoUpload}

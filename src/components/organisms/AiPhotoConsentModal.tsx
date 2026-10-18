@@ -40,8 +40,8 @@ export function AiPhotoConsentModal({
           </View>
 
           <Text style={[typo.body, { color: colors.text }]}>
-            Para que el tatuaje siga la curvatura y la luz de tu piel, la foto que acabas de tomar y tu boceto se envían
-            a la IA de Google, que devuelve la imagen recompuesta.
+            Para que el tatuaje siga la forma, la luz y el tono de tu piel, la foto que acabas de tomar y tu boceto se
+            envían a un servicio externo de inteligencia artificial, que devuelve la imagen recompuesta.
           </Text>
 
           <View style={styles.points}>
