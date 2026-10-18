@@ -1,14 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
 import { Segmented } from '../../components/atoms/Segmented';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
+import { FlashWall, useFlashClearArea } from '../../components/organisms/FlashWall';
 import { useAuthStore } from '../../controllers/useAuthStore';
-import type { AccountRole } from '../../controllers/useSettingsStore';
-import { type as typo, useTheme } from '../../theme';
+import { useSettingsStore, type AccountRole } from '../../controllers/useSettingsStore';
+import { fonts, type as typo, useResponsive, useTheme } from '../../theme';
 
 /**
  * Pantalla "Crear cuenta". Si el proyecto de Supabase tiene
@@ -29,8 +31,14 @@ export default function RegisterScreen() {
   const [specialty, setSpecialty] = useState('');
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
+  const layout = useResponsive();
+  const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
+  const { ref: logoRef, clear: logoClear, onLayout: onLogoLayout } = useFlashClearArea();
+  const wide = layout.breakpoint !== 'phone';
   const styles = createStyles(colors);
   const isArtist = role === 'artist';
+  const enter = (step: number) =>
+    reduceMotion ? undefined : FadeInDown.delay(150 + step * 80).duration(480).springify().damping(18);
 
   const handleSubmit = async () => {
     const ok = await signUp(email.trim(), password, {
@@ -44,13 +52,31 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={styles.screen}>
+      {/* La misma pared de flash que bienvenida y login. */}
+      <FlashWall delayMs={reduceMotion ? 0 : 100} clear={logoClear} />
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 28, justifyContent: wide ? 'center' : 'space-between' }]}
         keyboardShouldPersistTaps="handled"
       >
-        <BodyDraftLogo size={72} />
+        <Animated.View entering={enter(0)} style={styles.header}>
+          <View ref={logoRef} onLayout={onLogoLayout} style={styles.logo}>
+            <BodyDraftLogo size={wide ? 84 : 68} />
+          </View>
+        </Animated.View>
 
+        <Animated.View
+          entering={enter(1)}
+          style={[
+            styles.sheet,
+            wide ? styles.sheetWide : { paddingBottom: insets.bottom + 28 },
+            { paddingHorizontal: wide ? 36 : layout.gutter + 4 },
+          ]}
+        >
+        <Text style={styles.headline} accessibilityRole="header">
+          {needsConfirmation ? 'Revisa tu correo' : 'Abre tu estudio'}
+        </Text>
         {needsConfirmation ? (
           <View style={styles.form}>
             <Text style={styles.confirmText}>
@@ -134,21 +160,37 @@ export default function RegisterScreen() {
             </Pressable>
           </View>
         )}
+        </Animated.View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
-    content: { paddingHorizontal: 24, gap: 24, alignItems: 'stretch' },
+    fill: { flex: 1 },
+    content: { flexGrow: 1 },
+    header: { alignItems: 'center', paddingVertical: 24 },
+    logo: { alignItems: 'center', paddingVertical: 8 },
+    // Mostrador solido delante de la pared, igual que en login.
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      paddingTop: 28,
+      gap: 8,
+      width: '100%',
+    },
+    sheetWide: { maxWidth: 460, alignSelf: 'center', borderRadius: 32, paddingBottom: 36, marginBottom: 48 },
+    headline: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, letterSpacing: -0.6, color: colors.textStrong },
     form: { gap: 12, marginTop: 8 },
     input: {
       ...typo.body,
       color: colors.text,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
+      backgroundColor: colors.surfaceSunken,
+      borderWidth: 1.5,
       borderColor: colors.border,
       borderRadius: 18,
       padding: 14,

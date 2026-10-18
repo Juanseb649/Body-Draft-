@@ -6,8 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
-import { SPLASH_HANDOFF_MS, SplashHandoff } from '../../components/molecules/SplashHandoff';
-import { FlashWall } from '../../components/organisms/FlashWall';
+import { SPLASH_HANDOFF_MS, SplashHandoff, useSplashHandoffOnce } from '../../components/molecules/SplashHandoff';
+import { NeonText } from '../../components/atoms/NeonText';
+import { FlashWall, useFlashClearArea } from '../../components/organisms/FlashWall';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { flatToneColor, fonts, type as typo, useResponsive, useTheme } from '../../theme';
@@ -31,6 +32,9 @@ export default function LoginScreen() {
   const { colors, scheme } = useTheme();
   const layout = useResponsive();
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
+  const withHandoff = useSplashHandoffOnce();
+  // Sin traspaso (no es la primera pantalla) se entra enseguida.
+  const lead = withHandoff ? SPLASH_HANDOFF_MS : 250;
   const { signIn, isLoading, error } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -38,6 +42,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState<'email' | 'password' | null>(null);
 
+  const { ref: logoRef, clear: logoClear, onLayout: onLogoLayout } = useFlashClearArea();
   const styles = createStyles(colors);
   const accent = flatToneColor(scheme, 'fuchsia');
   const wide = layout.breakpoint !== 'phone';
@@ -45,7 +50,7 @@ export default function LoginScreen() {
   // Cada parte del formulario entra despues de la anterior, cuando el
   // telon del splash ya se abrio. Sin animaciones, todo esta desde el inicio.
   const enter = (step: number) =>
-    reduceMotion ? undefined : FadeInDown.delay(SPLASH_HANDOFF_MS - 200 + step * 80).duration(520).springify().damping(18);
+    reduceMotion ? undefined : FadeInDown.delay(lead - 200 + step * 80).duration(520).springify().damping(18);
 
   const handleSubmit = async () => {
     const ok = await signIn(email.trim(), password);
@@ -59,7 +64,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.screen}>
-      <FlashWall delayMs={reduceMotion ? 0 : SPLASH_HANDOFF_MS - 350} />
+      <FlashWall delayMs={reduceMotion ? 0 : Math.max(0, lead - 350)} clear={logoClear} />
 
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
@@ -70,8 +75,14 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.header, { minHeight: HEADER_LOGO_Y * 2 }]}>
+            {/* El logo completo, como en el splash: palabra, trazo y lema. */}
             <Animated.View entering={enter(0)}>
-              <BodyDraftLogo size={wide ? 92 : 76} />
+              <View ref={logoRef} onLayout={onLogoLayout} style={styles.logo}>
+                <BodyDraftLogo size={wide ? 92 : 76} />
+                <NeonText tone="amber" style={typo.tagline} containerStyle={styles.tagline}>
+                  diseña · agenda · tatúa
+                </NeonText>
+              </View>
             </Animated.View>
           </View>
 
@@ -164,7 +175,7 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <SplashHandoff targetY={HEADER_LOGO_Y} />
+      {withHandoff && <SplashHandoff targetY={HEADER_LOGO_Y} />}
     </View>
   );
 }
@@ -175,6 +186,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     fill: { flex: 1 },
     content: { flexGrow: 1 },
     header: { alignItems: 'center', justifyContent: 'center' },
+    logo: { alignItems: 'center', paddingVertical: 8 },
+    tagline: { marginTop: 6 },
     // El mostrador: una superficie solida (sin vidrio ni sombra) que
     // tapa la parte baja de la pared para que el formulario se lea.
     sheet: {

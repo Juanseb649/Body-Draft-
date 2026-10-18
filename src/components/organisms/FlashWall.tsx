@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
@@ -14,55 +14,67 @@ import Svg, { G, Path } from 'react-native-svg';
 
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { flatToneColor, useTheme } from '../../theme';
-import { flashWallLayout, type FlashTile } from './flashSheet';
+import { flashCellSize, flashWallLayout, type ClearArea, type FlashTile } from './flashSheet';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 
 /** Largo de guion mayor que cualquier trazo de un motivo (caja de 200). */
-const DASH = 720;
+const DASH = 900;
 /** Retraso entre un motivo y el siguiente, en "motivos" de progreso. */
-const STAGGER = 0.12;
-const DRAW_MS_PER_UNIT = 700;
+const STAGGER = 0.1;
+/** Grosor de linea en pantalla, en px, con peso 1. */
+const LINE = 2.2;
 
 /**
- * La pared de flash del estudio, de fondo. Cada motivo se "tatua" trazo
- * a trazo al entrar (el guion del trazo corre como la aguja), en orden
- * desde arriba y desde el centro, y despues la pared se desliza muy
- * despacio para que la pantalla no se sienta congelada.
+ * La pared de flash del estudio, de fondo (bienvenida, login, registro).
+ * Cada motivo se "tatua" trazo a trazo al entrar (el guion del trazo
+ * corre como la aguja) y los rellenos tribales y blackwork se entintan
+ * al terminar su contorno; despues la pared se desliza muy despacio
+ * para que la pantalla no se sienta congelada.
  *
- * Va apagada a proposito (opacidad baja): es la pared detras del
- * mostrador, no lo que se vino a leer. Con "Reducir animaciones" se
- * pinta entera y quieta.
+ * `clear` deja libre la zona del logo, tambien durante el
+ * deslizamiento. Con "Reducir animaciones" se pinta entera y quieta.
  */
-export function FlashWall({ delayMs = 0 }: { delayMs?: number }) {
+export function FlashWall({ delayMs = 0, clear }: { delayMs?: number; clear?: ClearArea }) {
   const { width, height } = useWindowDimensions();
   const { scheme } = useTheme();
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
-  const tiles = useMemo(() => flashWallLayout(width, height), [width, height]);
+  const cell = flashCellSize(width);
+  // Medio motivo de recorrido: suficiente para que la pared respire,
+  // sin obligar a vaciar una franja grande bajo el logo.
+  const drift = reduceMotion ? 0 : cell * 0.5;
+  const tiles = useMemo(
+    () => flashWallLayout(width, height, { clear, drift }),
+    // `clear` llega como objeto nuevo en cada render; se compara por valor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [width, height, drift, clear?.x, clear?.y, clear?.width, clear?.height],
+  );
   const total = tiles.length * STAGGER + 1;
-  const cell = tiles.length > 1 ? Math.abs(tiles[1].x - tiles[0].x) || 150 : 150;
 
   const progress = useSharedValue(reduceMotion ? total : 0);
-  const drift = useSharedValue(0);
+  const glide = useSharedValue(0);
 
   useEffect(() => {
     if (reduceMotion) {
       progress.set(total);
-      drift.set(0);
+      glide.set(0);
       return;
     }
     progress.set(0);
-    progress.set(
-      withDelay(delayMs, withTiming(total, { duration: total * DRAW_MS_PER_UNIT * 0.35, easing: Easing.out(Easing.quad) })),
-    );
-    drift.set(withRepeat(withTiming(1, { duration: 48000, easing: Easing.inOut(Easing.quad) }), -1, true));
-  }, [reduceMotion, total, delayMs, progress, drift]);
+    progress.set(withDelay(delayMs, withTiming(total, { duration: 1800, easing: Easing.out(Easing.quad) })));
+    glide.set(withRepeat(withTiming(1, { duration: 52000, easing: Easing.inOut(Easing.quad) }), -1, true));
+  }, [reduceMotion, total, delayMs, progress, glide]);
 
-  const driftStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -drift.get() * cell }] }));
+  const glideStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -glide.get() * drift }] }));
+  const opacity = scheme === 'dark' ? 0.42 : 0.4;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Animated.View style={[StyleSheet.absoluteFill, driftStyle]}>
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      aria-hidden
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, glideStyle]}>
         <Svg width={width} height={height + cell * 1.5}>
           {tiles.map((tile, i) => (
             <FlashTileView
@@ -70,7 +82,7 @@ export function FlashWall({ delayMs = 0 }: { delayMs?: number }) {
               tile={tile}
               progress={progress}
               color={flatToneColor(scheme, tile.tone)}
-              opacity={scheme === 'dark' ? 0.42 : 0.4}
+              opacity={opacity}
             />
           ))}
         </Svg>
@@ -90,11 +102,13 @@ function FlashTileView({
   color: string;
   opacity: number;
 }) {
-  // El guion se hereda del <G> a sus trazos: un valor animado por
-  // motivo, no uno por trazo.
+  // El guion y la opacidad del relleno se heredan del <G> a sus trazos:
+  // un valor animado por motivo, no uno por trazo.
   const animatedProps = useAnimatedProps(() => {
     const local = Math.min(1, Math.max(0, progress.get() - tile.order * STAGGER));
-    return { strokeDashoffset: DASH * (1 - local) };
+    // El relleno entra en el ultimo tercio: primero el contorno, despues la tinta.
+    const ink = Math.min(1, Math.max(0, (local - 0.65) / 0.35));
+    return { strokeDashoffset: DASH * (1 - local), fillOpacity: ink * opacity * 0.85 };
   });
 
   const scale = tile.size / 200;
@@ -103,16 +117,43 @@ function FlashTileView({
       animatedProps={animatedProps}
       transform={`translate(${tile.x} ${tile.y}) rotate(${tile.rotation} ${tile.size / 2} ${tile.size / 2}) scale(${scale})`}
       stroke={color}
+      fill={color}
       strokeOpacity={opacity}
-      strokeWidth={2.4 / scale}
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeDasharray={[DASH, DASH]}
-      fill="none"
     >
-      {tile.motif.paths.map((d, i) => (
-        <Path key={i} d={d} />
+      {tile.motif.strokes.map((stroke, i) => (
+        <Path
+          key={i}
+          d={stroke.d}
+          strokeWidth={(LINE * (stroke.weight ?? 1)) / scale}
+          {...(stroke.fill ? null : { fill: 'none' })}
+        />
       ))}
     </AnimatedG>
   );
+}
+
+/**
+ * Mide donde quedo el logo EN LA PANTALLA para dejarle libre esa zona
+ * de la pared: `ref` y `onLayout` van en la caja del logo, `clear` en
+ * <FlashWall>. Con margen, para que ningun motivo le roce el borde.
+ * (measureInWindow y no el layout: ese es relativo al padre, y el logo
+ * vive dentro de cabeceras y scrolls.)
+ */
+export function useFlashClearArea(margin = 12) {
+  const node = useRef<View | null>(null);
+  const [clear, setClear] = useState<ClearArea | undefined>(undefined);
+  // Ref por callback (una funcion, no el objeto ref) para que la
+  // pantalla no lea un ref durante el render.
+  const ref = (view: View | null) => {
+    node.current = view;
+  };
+  const onLayout = () => {
+    node.current?.measureInWindow((x, y, width, height) => {
+      if (width > 0) setClear({ x: x - margin, y: y - margin, width: width + margin * 2, height: height + margin * 2 });
+    });
+  };
+  return { ref, clear, onLayout };
 }

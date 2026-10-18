@@ -22,7 +22,18 @@ export const SPLASH_HANDOFF_MS = 950;
  * Solo mueve transform y opacidad (corre en el hilo de UI). Con
  * "Reducir animaciones" no se monta: la pantalla aparece directa.
  */
-export function SplashHandoff({ targetY = 120 }: { targetY?: number }) {
+export function SplashHandoff({
+  targetY = 120,
+  centered = false,
+}: {
+  /** Altura (bajo el area segura) donde aterriza el logo. */
+  targetY?: number;
+  /**
+   * El logo de la pantalla ya esta en el centro, donde lo deja el
+   * splash (bienvenida): no viaja, solo se funde en su sitio.
+   */
+  centered?: boolean;
+}) {
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -46,12 +57,13 @@ export function SplashHandoff({ targetY = 120 }: { targetY?: number }) {
   }, [reduceMotion, curtain, lift]);
 
   // Del centro de la pantalla (donde lo deja el splash) a la cabecera.
-  const travel = insets.top + targetY - height / 2;
+  const travel = centered ? 0 : insets.top + targetY - height / 2;
+  const shrink = centered ? 0.1 : 0.55;
 
   const backgroundStyle = useAnimatedStyle(() => ({ opacity: curtain.get() }));
   const logoStyle = useAnimatedStyle(() => ({
     opacity: curtain.get(),
-    transform: [{ translateY: lift.get() * travel }, { scale: 1 - lift.get() * 0.55 }],
+    transform: [{ translateY: lift.get() * travel }, { scale: 1 - lift.get() * shrink }],
   }));
 
   if (done) return null;
@@ -72,3 +84,21 @@ export function SplashHandoff({ targetY = 120 }: { targetY?: number }) {
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
 });
+
+/** El traspaso solo tiene sentido en la PRIMERA pantalla que se abre. */
+let handoffShown = false;
+
+/**
+ * true solo para la primera pantalla que lo pide en esta sesion de la
+ * app (la que se abre detras del splash nativo). Ir de bienvenida a
+ * login no vuelve a mostrar el splash: seria un corte que no existe.
+ */
+export function useSplashHandoffOnce(): boolean {
+  const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
+  const [first] = useState(() => {
+    const isFirst = !handoffShown;
+    handoffShown = true;
+    return isFirst;
+  });
+  return first && !reduceMotion;
+}

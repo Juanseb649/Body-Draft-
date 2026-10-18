@@ -51,7 +51,7 @@ export function ArtistWorkCard({
           {onToggleLike && (
             <LikeButton compact liked={summary.likedByMe} count={summary.likeCount} onPress={onToggleLike} />
           )}
-          <View style={styles.commentPill} accessibilityElementsHidden importantForAccessibility="no">
+          <View style={styles.commentPill} aria-hidden>
             <Icon name="comment" size={16} color="#FFFFFF" />
             <Text style={styles.commentCount}>{formatCount(summary.commentCount)}</Text>
           </View>
