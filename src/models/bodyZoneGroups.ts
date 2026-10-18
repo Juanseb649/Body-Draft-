@@ -25,16 +25,16 @@ export function groupOf(zone?: BodyZone): BodyZoneGroup {
  * ve de frente: se marca detras del torso, con su propio punto.
  */
 export const ZONE_HOTSPOTS: Record<BodyZone, { x: number; y: number }> = {
-  neck: { x: 50, y: 33 },
-  shoulder: { x: 67, y: 45 },
-  chest: { x: 42, y: 56 },
-  ribs: { x: 57, y: 74 },
-  back: { x: 34, y: 80 },
-  arm: { x: 74, y: 66 },
-  forearm: { x: 79, y: 90 },
-  wrist: { x: 82, y: 107 },
-  hand: { x: 84, y: 120 },
-  thigh: { x: 58, y: 132 },
-  calf: { x: 59, y: 166 },
-  ankle: { x: 59, y: 188 },
+  neck: { x: 50, y: 29 },
+  shoulder: { x: 66, y: 39 },
+  chest: { x: 43, y: 52 },
+  ribs: { x: 60, y: 72 },
+  back: { x: 37, y: 84 },
+  arm: { x: 70, y: 56 },
+  forearm: { x: 74, y: 84 },
+  wrist: { x: 75.5, y: 98 },
+  hand: { x: 76.5, y: 107 },
+  thigh: { x: 58, y: 120 },
+  calf: { x: 58, y: 166 },
+  ankle: { x: 58, y: 188 },
 };

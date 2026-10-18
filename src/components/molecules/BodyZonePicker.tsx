@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 
 import { BODY_ZONE_LABELS, type BodyZone } from '../../models/bodyZone';
 import { BODY_ZONE_GROUPS, groupOf, ZONE_HOTSPOTS, type BodyZoneGroup } from '../../models/bodyZoneGroups';
@@ -19,13 +19,32 @@ export type ZoneHint =
   /** No se ve suficiente cuerpo (primer plano) o no se pudo detectar. */
   | { state: 'unknown'; reason: 'closeup' | 'unavailable' };
 
-/** Figura de frente, caja 100×200: cabeza, torso, brazo y pierna de cada lado. */
-const FIGURE =
-  'M50 6 a11 12 0 1 1 -0.1 0 Z ' +
-  'M44 29 h12 v6 l14 5 c6 2 8 8 9 14 l5 30 c1 8 3 18 3 24 l1 14 c0 4 -6 4 -6 0 l-3 -14 c-2 -8 -4 -16 -5 -24 l-3 -16 ' +
-  'l-2 22 c0 8 2 14 3 20 l3 30 c1 10 1 22 0 32 l-1 16 c0 3 -7 3 -7 0 l-2 -16 c-2 -10 -3 -22 -3 -32 h-2 ' +
-  'c0 10 -1 22 -3 32 l-2 16 c0 3 -7 3 -7 0 l-1 -16 c-1 -10 -1 -22 0 -32 l3 -30 c1 -6 3 -12 3 -20 l-2 -22 ' +
-  'l-3 16 c-1 8 -3 16 -5 24 l-3 14 c0 4 -6 4 -6 0 l1 -14 c0 -6 2 -16 3 -24 l5 -30 c1 -6 3 -12 9 -14 l14 -5 Z';
+/**
+ * Figura de frente en una caja de 100×200, con proporciones de cuerpo
+ * real: la cabeza ~1/9 de la altura, un cuello corto y recto entre la
+ * cabeza y los hombros, las piernas la mitad de la altura (cadera en
+ * y≈96) y las manos a medio muslo. Se arma con formas simples (cabeza,
+ * cuello, torso, y brazos/piernas como trazos gruesos) en vez de un solo
+ * contorno a mano, que dejaba el cuello deforme y las piernas cortas.
+ */
+function BodyFigure({ color }: { color: string }) {
+  const limb = { stroke: color, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  return (
+    <G>
+      <Circle cx={50} cy={15} r={10} fill={color} />
+      <Rect x={45.5} y={23} width={9} height={12} rx={3} fill={color} />
+      <Path d="M30 41 Q30 34 38 34 L62 34 Q70 34 70 41 L66 72 Q65 86 63 98 L37 98 Q35 86 34 72 Z" fill={color} />
+      <Path d="M33 40 L27 70 L24 99" strokeWidth={8} {...limb} />
+      <Path d="M67 40 L73 70 L76 99" strokeWidth={8} {...limb} />
+      <Circle cx={23.5} cy={106} r={5} fill={color} />
+      <Circle cx={76.5} cy={106} r={5} fill={color} />
+      <Path d="M43 95 L42 146 L42 189" strokeWidth={11} {...limb} />
+      <Path d="M57 95 L58 146 L58 189" strokeWidth={11} {...limb} />
+      <Path d="M42 191 L35 194" strokeWidth={6} {...limb} />
+      <Path d="M58 191 L65 194" strokeWidth={6} {...limb} />
+    </G>
+  );
+}
 
 const FIGURE_HEIGHT = 196;
 const FIGURE_WIDTH = FIGURE_HEIGHT / 2;
@@ -93,7 +112,9 @@ export function BodyZonePicker({
       <View style={styles.body}>
         <View style={{ width: FIGURE_WIDTH, height: FIGURE_HEIGHT }} accessibilityLabel="Figura del cuerpo: toca una zona">
           <Svg width={FIGURE_WIDTH} height={FIGURE_HEIGHT} viewBox="0 0 100 200">
-            <Path d={FIGURE} fill={colors.border} />
+            <G opacity={0.32}>
+              <BodyFigure color={colors.textMuted} />
+            </G>
             {(Object.keys(ZONE_HOTSPOTS) as BodyZone[]).map((zone) => {
               const { x, y } = ZONE_HOTSPOTS[zone];
               const active = zone === value;
