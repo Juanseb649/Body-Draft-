@@ -11,9 +11,12 @@ import { RevealOnScroll } from '../../components/atoms/RevealOnScroll';
 import { ArtistWorkCard } from '../../components/molecules/ArtistWorkCard';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import { useDesignSocialStore } from '../../controllers/useDesignSocialStore';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { greetingFor } from '../../models/greeting';
-import { type as typo, useTheme } from '../../theme';
+import { gridItemWidth, type as typo, useResponsive, useTheme } from '../../theme';
+
+const FEED_GAP = 14;
 
 /**
  * "Inicio". Ya NO lleva accesos a las secciones: para eso esta el menu
@@ -27,7 +30,14 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const name = (useAuthStore((s) => s.user?.user_metadata?.name as string | undefined)) ?? '';
   const initial = (name || '?').charAt(0).toUpperCase();
+  const userId = useAuthStore((s) => s.user?.id);
   const { feed, isFeedLoading, loadFeed } = useDesignStore();
+  const summaries = useDesignSocialStore((s) => s.summaries);
+  const loadSummaries = useDesignSocialStore((s) => s.loadSummaries);
+  const toggleLike = useDesignSocialStore((s) => s.toggleLike);
+  const layout = useResponsive();
+  const contentWidth = Math.min(layout.width, layout.contentMaxWidth) - layout.gutter * 2;
+  const cellWidth = gridItemWidth(contentWidth, layout.gridColumns, FEED_GAP);
 
   const styles = createStyles(colors);
   const scrollY = useSharedValue(0);
@@ -41,10 +51,24 @@ export default function HomeScreen() {
     loadFeed();
   }, [loadFeed]);
 
+  // Los contadores van aparte del feed: si fallan, las fotos se ven igual.
+  useEffect(() => {
+    if (feed.length > 0) loadSummaries(feed.map((item) => item.design.id), userId);
+  }, [feed, userId, loadSummaries]);
+
   return (
     <Animated.ScrollView
       style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + 16,
+          paddingHorizontal: layout.gutter,
+          maxWidth: layout.contentMaxWidth,
+          width: '100%',
+          alignSelf: 'center',
+        },
+      ]}
       onScroll={onScroll}
       scrollEventThrottle={16}
     >
@@ -108,8 +132,13 @@ export default function HomeScreen() {
         }}
       >
         {feed.map((item) => (
-          <RevealOnScroll key={item.design.id} scrollY={scrollY} sectionY={feedY} style={styles.feedItem}>
-            <ArtistWorkCard item={item} onPress={() => router.push(`/artists/${item.design.artistId}`)} />
+          <RevealOnScroll key={item.design.id} scrollY={scrollY} sectionY={feedY} style={{ width: cellWidth }}>
+            <ArtistWorkCard
+              item={item}
+              summary={summaries[item.design.id]}
+              onPress={() => router.push(`/designs/${item.design.id}`)}
+              onToggleLike={userId ? () => toggleLike(item.design.id, userId) : undefined}
+            />
           </RevealOnScroll>
         ))}
       </View>
@@ -125,7 +154,7 @@ export default function HomeScreen() {
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
-    content: { paddingHorizontal: 20, paddingBottom: 32, gap: 20 },
+    content: { paddingBottom: 32, gap: 20 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     avatar: {
       width: 40,
@@ -172,7 +201,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: 12,
       backgroundColor: colors.success + '26',
     },
-    feedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    feedItem: { width: '48%' },
+    feedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: FEED_GAP },
   });
 }

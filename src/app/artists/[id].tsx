@@ -72,7 +72,16 @@ export default function ArtistProfileScreen() {
           Este tatuador todavía no publicó trabajos.
         </Text>
       }
-      renderItem={({ item }) => <Image source={{ uri: item.imageUrl }} style={styles.portfolioImage} />}
+      renderItem={({ item }) => (
+        <Pressable
+          onPress={() => router.push(`/designs/${item.id}`)}
+          style={({ pressed }) => [styles.portfolioCell, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}: ver, comentar o agendar`}
+        >
+          <Image source={{ uri: item.imageUrl }} style={styles.portfolioImage} />
+        </Pressable>
+      )}
       ListFooterComponent={
         <View style={styles.footer}>
           <AppButton label="Agendar" onPress={() => router.push(`/appointment/${artist.id}`)} />
@@ -98,7 +107,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     avatarLabel: { fontSize: 44, fontFamily: 'Sacramento' },
     row: { gap: 12, paddingHorizontal: 20 },
-    portfolioImage: { flex: 1, aspectRatio: 1, borderRadius: 14, backgroundColor: colors.surfaceRaised },
+    portfolioCell: { flex: 1 },
+    portfolioImage: { width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: colors.surfaceRaised },
     footer: { paddingHorizontal: 20, marginTop: 24 },
   });
 }
