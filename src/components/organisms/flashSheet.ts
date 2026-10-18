@@ -379,6 +379,8 @@ export interface FlashTile {
   tone: GlowTone;
   /** Orden en que se "tatua" al entrar (0 = primero). */
   order: number;
+  /** Queda detras de texto (formulario, botones): se pinta mas tenue. */
+  dimmed: boolean;
 }
 
 export interface ClearArea {
@@ -400,7 +402,12 @@ export interface ClearArea {
 export function flashWallLayout(
   width: number,
   height: number,
-  { overscan = 1, clear, drift = 0 }: { overscan?: number; clear?: ClearArea; drift?: number } = {},
+  {
+    overscan = 1,
+    clear,
+    dim,
+    drift = 0,
+  }: { overscan?: number; clear?: ClearArea; dim?: ClearArea; drift?: number } = {},
 ): FlashTile[] {
   if (width <= 0 || height <= 0) return [];
   const random = seeded(7);
@@ -422,9 +429,13 @@ export function flashWallLayout(
         rotation: (random() - 0.5) * 24,
         tone: TONES[index % TONES.length],
         order: 0,
+        dimmed: false,
       };
       index++;
       if (clear && overlapsClear(tile, clear, drift)) continue;
+      // Detras del formulario la pared sigue, pero apagada: hay motivos
+      // hasta abajo sin pelearse con lo que hay que leer.
+      tile.dimmed = Boolean(dim && overlapsClear(tile, dim, drift));
       tiles.push(tile);
     }
   }

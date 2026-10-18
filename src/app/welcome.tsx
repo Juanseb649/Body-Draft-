@@ -26,6 +26,7 @@ export default function WelcomeScreen() {
   // Sin traspaso (no es la primera pantalla) se entra enseguida.
   const lead = withHandoff ? SPLASH_HANDOFF_MS : 250;
   const { ref: logoRef, clear: logoClear, onLayout: onLogoLayout } = useFlashClearArea(16);
+  const { ref: formRef, clear: formArea, onLayout: onFormLayout } = useFlashClearArea(0);
   const styles = createStyles(colors);
 
   const enter = (step: number) =>
@@ -33,7 +34,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <FlashWall delayMs={reduceMotion ? 0 : Math.max(0, lead - 350)} clear={logoClear} />
+      <FlashWall delayMs={reduceMotion ? 0 : Math.max(0, lead - 350)} clear={logoClear} dim={formArea} />
 
       <View style={styles.center}>
         <Animated.View entering={enter(0)}>
@@ -46,6 +47,7 @@ export default function WelcomeScreen() {
         </Animated.View>
       </View>
 
+      <View ref={formRef} onLayout={onFormLayout}>
       <Animated.View
         entering={enter(1)}
         style={[
@@ -68,6 +70,7 @@ export default function WelcomeScreen() {
           Al continuar aceptas los Términos y la Política de privacidad
         </Text>
       </Animated.View>
+      </View>
 
       {withHandoff && <SplashHandoff targetY={0} centered />}
     </View>
@@ -80,11 +83,10 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
     logo: { alignItems: 'center', paddingVertical: 12 },
     tagline: { marginTop: 16 },
-    // Mostrador solido para que las acciones se lean sobre la pared.
+    // Directo sobre la pared, que detras de las acciones se apaga.
     actions: {
       gap: 16,
       paddingTop: 28,
-      backgroundColor: colors.background,
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       width: '100%',

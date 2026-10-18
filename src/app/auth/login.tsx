@@ -43,6 +43,7 @@ export default function LoginScreen() {
   const [focused, setFocused] = useState<'email' | 'password' | null>(null);
 
   const { ref: logoRef, clear: logoClear, onLayout: onLogoLayout } = useFlashClearArea();
+  const { ref: formRef, clear: formArea, onLayout: onFormLayout } = useFlashClearArea(0);
   const styles = createStyles(colors);
   const accent = flatToneColor(scheme, 'fuchsia');
   const wide = layout.breakpoint !== 'phone';
@@ -64,7 +65,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.screen}>
-      <FlashWall delayMs={reduceMotion ? 0 : Math.max(0, lead - 350)} clear={logoClear} />
+      <FlashWall delayMs={reduceMotion ? 0 : Math.max(0, lead - 350)} clear={logoClear} dim={formArea} />
 
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
@@ -87,6 +88,8 @@ export default function LoginScreen() {
           </View>
 
           <View
+            ref={formRef}
+            onLayout={onFormLayout}
             style={[
               styles.sheet,
               wide ? styles.sheetWide : { paddingBottom: insets.bottom + 28 },
@@ -188,10 +191,10 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     header: { alignItems: 'center', justifyContent: 'center' },
     logo: { alignItems: 'center', paddingVertical: 8 },
     tagline: { marginTop: 6 },
-    // El mostrador: una superficie solida (sin vidrio ni sombra) que
-    // tapa la parte baja de la pared para que el formulario se lea.
+    // El formulario va directo sobre la pared (que ahi se apaga, ver
+    // `dim`): asi hay tatuajes hasta abajo. Los campos y el boton son
+    // solidos, que es lo que hace falta leer.
     sheet: {
-      backgroundColor: colors.background,
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       paddingTop: 30,

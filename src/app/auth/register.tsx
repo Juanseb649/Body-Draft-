@@ -34,6 +34,7 @@ export default function RegisterScreen() {
   const layout = useResponsive();
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
   const { ref: logoRef, clear: logoClear, onLayout: onLogoLayout } = useFlashClearArea();
+  const { ref: formRef, clear: formArea, onLayout: onFormLayout } = useFlashClearArea(0);
   const wide = layout.breakpoint !== 'phone';
   const styles = createStyles(colors);
   const isArtist = role === 'artist';
@@ -54,7 +55,7 @@ export default function RegisterScreen() {
   return (
     <View style={styles.screen}>
       {/* La misma pared de flash que bienvenida y login. */}
-      <FlashWall delayMs={reduceMotion ? 0 : 100} clear={logoClear} />
+      <FlashWall delayMs={reduceMotion ? 0 : 100} clear={logoClear} dim={formArea} />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 28, justifyContent: wide ? 'center' : 'space-between' }]}
@@ -66,6 +67,7 @@ export default function RegisterScreen() {
           </View>
         </Animated.View>
 
+        <View ref={formRef} onLayout={onFormLayout}>
         <Animated.View
           entering={enter(1)}
           style={[
@@ -161,6 +163,7 @@ export default function RegisterScreen() {
           </View>
         )}
         </Animated.View>
+        </View>
       </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -174,9 +177,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     content: { flexGrow: 1 },
     header: { alignItems: 'center', paddingVertical: 24 },
     logo: { alignItems: 'center', paddingVertical: 8 },
-    // Mostrador solido delante de la pared, igual que en login.
+    // Directo sobre la pared apagada, igual que en login.
     sheet: {
-      backgroundColor: colors.background,
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       paddingTop: 28,

@@ -35,7 +35,17 @@ const LINE = 2.2;
  * `clear` deja libre la zona del logo, tambien durante el
  * deslizamiento. Con "Reducir animaciones" se pinta entera y quieta.
  */
-export function FlashWall({ delayMs = 0, clear }: { delayMs?: number; clear?: ClearArea }) {
+export function FlashWall({
+  delayMs = 0,
+  clear,
+  dim,
+}: {
+  delayMs?: number;
+  /** Zona sin motivos (el logo). */
+  clear?: ClearArea;
+  /** Zona con motivos apagados (detras del formulario o los botones). */
+  dim?: ClearArea;
+}) {
   const { width, height } = useWindowDimensions();
   const { scheme } = useTheme();
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
@@ -44,10 +54,10 @@ export function FlashWall({ delayMs = 0, clear }: { delayMs?: number; clear?: Cl
   // sin obligar a vaciar una franja grande bajo el logo.
   const drift = reduceMotion ? 0 : cell * 0.5;
   const tiles = useMemo(
-    () => flashWallLayout(width, height, { clear, drift }),
-    // `clear` llega como objeto nuevo en cada render; se compara por valor.
+    () => flashWallLayout(width, height, { clear, dim, drift }),
+    // `clear` y `dim` llegan como objetos nuevos en cada render; se comparan por valor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [width, height, drift, clear?.x, clear?.y, clear?.width, clear?.height],
+    [width, height, drift, clear?.x, clear?.y, clear?.width, clear?.height, dim?.x, dim?.y, dim?.width, dim?.height],
   );
   const total = tiles.length * STAGGER + 1;
 
@@ -82,7 +92,7 @@ export function FlashWall({ delayMs = 0, clear }: { delayMs?: number; clear?: Cl
               tile={tile}
               progress={progress}
               color={flatToneColor(scheme, tile.tone)}
-              opacity={opacity}
+              opacity={tile.dimmed ? opacity * 0.38 : opacity}
             />
           ))}
         </Svg>
@@ -150,10 +160,16 @@ export function useFlashClearArea(margin = 12) {
   const ref = (view: View | null) => {
     node.current = view;
   };
-  const onLayout = () => {
+  const measure = () => {
     node.current?.measureInWindow((x, y, width, height) => {
       if (width > 0) setClear({ x: x - margin, y: y - margin, width: width + margin * 2, height: height + margin * 2 });
     });
+  };
+  const onLayout = () => {
+    measure();
+    // Otra vez cuando termina la entrada: mientras sube (FadeInDown) la
+    // caja esta desplazada y la zona libre quedaria corrida.
+    setTimeout(measure, 1600);
   };
   return { ref, clear, onLayout };
 }

@@ -69,3 +69,15 @@ describe('flashWallLayout', () => {
     expect(flashWallLayout(0, 0)).toEqual([]);
   });
 });
+
+describe('flashWallLayout — detras del formulario', () => {
+  it('hay motivos hasta abajo, apagados donde va el formulario', () => {
+    const dim = { x: 0, y: 420, width: 390, height: 424 };
+    const tiles = flashWallLayout(390, 844, { dim });
+    // Los que se ven (los de mas abajo solo existen para el deslizamiento).
+    const below = tiles.filter((t) => t.y + t.size / 2 > 460 && t.y + t.size / 2 < 844 && t.x + t.size * 0.65 < 390);
+    expect(below.length).toBeGreaterThan(4);
+    expect(below.every((t) => t.dimmed)).toBe(true);
+    expect(tiles.filter((t) => t.y + t.size < 380).every((t) => !t.dimmed)).toBe(true);
+  });
+});
