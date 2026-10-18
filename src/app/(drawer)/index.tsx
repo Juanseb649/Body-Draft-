@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,12 +11,17 @@ import { RevealOnScroll } from '../../components/atoms/RevealOnScroll';
 import { ArtistWorkCard } from '../../components/molecules/ArtistWorkCard';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import { artistRepository } from '../../core/services';
+import { useAppointmentStore } from '../../controllers/useAppointmentStore';
 import { useDesignSocialStore } from '../../controllers/useDesignSocialStore';
 import { useDesignStore } from '../../controllers/useDesignStore';
+import { nextAppointment } from '../../models/appointment';
 import { greetingFor } from '../../models/greeting';
 import { gridItemWidth, type as typo, useResponsive, useTheme } from '../../theme';
 
 const FEED_GAP = 14;
+
+const STATUS: Record<'pending' | 'confirmed', string> = { pending: 'Pendiente', confirmed: 'Confirmada' };
 
 /**
  * "Inicio". Ya NO lleva accesos a las secciones: para eso esta el menu
@@ -35,6 +40,10 @@ export default function HomeScreen() {
   const summaries = useDesignSocialStore((s) => s.summaries);
   const loadSummaries = useDesignSocialStore((s) => s.loadSummaries);
   const toggleLike = useDesignSocialStore((s) => s.toggleLike);
+  const appointments = useAppointmentStore((s) => s.appointments);
+  const loadAppointments = useAppointmentStore((s) => s.loadAppointments);
+  const upcoming = nextAppointment(appointments);
+  const [upcomingArtist, setUpcomingArtist] = useState<{ id: string; name: string } | null>(null);
   const layout = useResponsive();
   const contentWidth = Math.min(layout.width, layout.contentMaxWidth) - layout.gutter * 2;
   const cellWidth = gridItemWidth(contentWidth, layout.gridColumns, FEED_GAP);
@@ -50,6 +59,20 @@ export default function HomeScreen() {
   useEffect(() => {
     loadFeed();
   }, [loadFeed]);
+
+  // La proxima cita sale de Supabase: antes aqui habia una de ejemplo
+  // (14 de octubre, "Confirmada") que el usuario nunca agendo.
+  useEffect(() => {
+    if (userId) loadAppointments(userId);
+  }, [userId, loadAppointments]);
+
+  useEffect(() => {
+    if (!upcoming) return;
+    artistRepository
+      .getArtistById(upcoming.artistId)
+      .then((a) => a && setUpcomingArtist({ id: a.id, name: a.name }))
+      .catch(() => {});
+  }, [upcoming]);
 
   // Los contadores van aparte del feed: si fallan, las fotos se ven igual.
   useEffect(() => {
@@ -103,20 +126,50 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      {/* TODO: reemplazar por la proxima Appointment real (useAppointmentStore). */}
-      <View style={styles.appointmentCard}>
-        <View style={styles.dateBadge}>
-          <Text style={[typo.label, { color: colors.secondary, fontSize: 10 }]}>OCT</Text>
-          <Text style={[typo.title, { color: colors.textStrong }]}>14</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>Tu artista</Text>
-          <Text style={[typo.caption, { color: colors.textMuted }]}>Antebrazo · 4:30 p. m.</Text>
-        </View>
-        <View style={styles.statusPill}>
-          <Text style={[typo.caption, { color: colors.success, fontFamily: typo.bodyStrong.fontFamily }]}>Confirmada</Text>
-        </View>
-      </View>
+      {upcoming ? (
+        <Pressable
+          onPress={() => router.push('/agenda')}
+          style={({ pressed }) => [styles.appointmentCard, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <View style={styles.dateBadge}>
+            <Text style={[typo.label, { color: colors.secondary, fontSize: 10 }]}>
+              {new Date(upcoming.dateTime).toLocaleDateString('es', { month: 'short' }).replace('.', '')}
+            </Text>
+            <Text style={[typo.title, { color: colors.textStrong }]}>{new Date(upcoming.dateTime).getDate()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>
+              {upcomingArtist?.id === upcoming.artistId ? upcomingArtist.name : 'Tu tatuador'}
+            </Text>
+            <Text style={[typo.caption, { color: colors.textMuted }]}>
+              {new Date(upcoming.dateTime).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}
+            </Text>
+          </View>
+          <View style={[styles.statusPill, upcoming.status === 'pending' && { backgroundColor: colors.accent + '26' }]}>
+            <Text
+              style={[
+                typo.caption,
+                { color: upcoming.status === 'confirmed' ? colors.success : colors.accent, fontFamily: typo.bodyStrong.fontFamily },
+              ]}
+            >
+              {STATUS[upcoming.status as 'pending' | 'confirmed']}
+            </Text>
+          </View>
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => router.push('/appointment/new')}
+          style={({ pressed }) => [styles.appointmentCard, styles.noAppointment, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>No tienes citas por delante</Text>
+            <Text style={[typo.caption, { color: colors.textMuted }]}>Elige un tatuador y reserva un horario.</Text>
+          </View>
+          <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Agendar</Text>
+        </Pressable>
+      )}
 
       <View style={styles.sectionHeader}>
         <Text style={[typo.sectionTitle, { color: colors.textStrong }]}>Lo último de los artistas</Text>
@@ -195,6 +248,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    noAppointment: { borderStyle: 'dashed' },
     statusPill: {
       paddingHorizontal: 10,
       paddingVertical: 6,
