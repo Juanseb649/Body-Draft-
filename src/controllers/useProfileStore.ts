@@ -10,6 +10,8 @@ export interface MyProfile {
 
 interface ProfileState {
   profile: MyProfile;
+  /** De quien es `profile`: al cambiar de cuenta no se ve la foto de la anterior. */
+  userId?: string;
   isSaving: boolean;
   error?: string;
   /** Lee nombre y foto del perfil propio (Inicio, menu y Ajustes lo comparten). */
@@ -35,6 +37,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   error: undefined,
 
   load: async (userId) => {
+    if (get().userId !== userId) set({ profile: {}, userId });
     try {
       const me = await artistRepository.getMyProfile(userId);
       if (me) set({ profile: { name: me.name, avatarUrl: me.avatarUrl } });
@@ -82,5 +85,5 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  reset: () => set({ profile: {}, isSaving: false, error: undefined }),
+  reset: () => set({ profile: {}, userId: undefined, isSaving: false, error: undefined }),
 }));

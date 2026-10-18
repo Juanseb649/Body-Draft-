@@ -5,6 +5,7 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
+import { Avatar } from '../../components/atoms/Avatar';
 import { MenuButton } from '../../components/atoms/MenuButton';
 import { NeonText } from '../../components/atoms/NeonText';
 import { RevealOnScroll } from '../../components/atoms/RevealOnScroll';
@@ -15,6 +16,7 @@ import { artistRepository } from '../../core/services';
 import { useAppointmentStore } from '../../controllers/useAppointmentStore';
 import { useDesignSocialStore } from '../../controllers/useDesignSocialStore';
 import { useDesignStore } from '../../controllers/useDesignStore';
+import { useProfileStore } from '../../controllers/useProfileStore';
 import { nextAppointment } from '../../models/appointment';
 import { greetingFor } from '../../models/greeting';
 import { gridItemWidth, type as typo, useResponsive, useTheme } from '../../theme';
@@ -33,9 +35,12 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const name = (useAuthStore((s) => s.user?.user_metadata?.name as string | undefined)) ?? '';
-  const initial = (name || '?').charAt(0).toUpperCase();
+  const signUpName = useAuthStore((s) => s.user?.user_metadata?.name as string | undefined);
   const userId = useAuthStore((s) => s.user?.id);
+  const profile = useProfileStore((s) => s.profile);
+  const loadProfile = useProfileStore((s) => s.load);
+  // El nombre del perfil manda (es el que se edita); el del registro es el respaldo.
+  const name = profile.name ?? signUpName ?? '';
   const { feed, isFeedLoading, loadFeed } = useDesignStore();
   const summaries = useDesignSocialStore((s) => s.summaries);
   const loadSummaries = useDesignSocialStore((s) => s.loadSummaries);
@@ -59,6 +64,10 @@ export default function HomeScreen() {
   useEffect(() => {
     loadFeed();
   }, [loadFeed]);
+
+  useEffect(() => {
+    if (userId) loadProfile(userId);
+  }, [userId, loadProfile]);
 
   // La proxima cita sale de Supabase: antes aqui habia una de ejemplo
   // (14 de octubre, "Confirmada") que el usuario nunca agendo.
@@ -98,9 +107,16 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <MenuButton />
         <BodyDraftLogo variant="inline" size={28} />
-        <View style={styles.avatar}>
-          <Text style={styles.avatarLabel}>{initial}</Text>
-        </View>
+        {/* Tu foto (o tus iniciales) lleva a Ajustes: tu cuenta, tu foto y tus preferencias. */}
+        <Pressable
+          onPress={() => router.push('/ajustes')}
+          hitSlop={8}
+          style={({ pressed }) => pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] }}
+          accessibilityRole="button"
+          accessibilityLabel="Tu perfil y ajustes"
+        >
+          <Avatar name={name} imageUrl={profile.avatarUrl} size={40} />
+        </Pressable>
       </View>
 
       <Text style={[typo.title, { color: colors.textStrong }]}>
@@ -209,16 +225,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     content: { paddingBottom: 32, gap: 20 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      borderWidth: 2,
-      borderColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarLabel: { ...typo.bodyStrong, color: colors.primary },
     ctaCard: {
       backgroundColor: colors.surface,
       borderRadius: 20,

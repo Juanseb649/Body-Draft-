@@ -1,9 +1,14 @@
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Avatar } from '../../components/atoms/Avatar';
 import { Segmented } from '../../components/atoms/Segmented';
+import { Spinner } from '../../components/atoms/Spinner';
 import { SectionHeader } from '../../components/molecules/SectionHeader';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import { useProfileStore } from '../../controllers/useProfileStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { palette, type as typo, useTheme } from '../../theme';
 
@@ -17,29 +22,77 @@ export default function SettingsScreen() {
   const { user, signOut, updateRole } = useAuthStore();
   const settings = useSettingsStore();
 
+  const { profile, isSaving, error: profileError, load, changeAvatar, removeAvatar } = useProfileStore();
   const styles = createStyles(colors);
-  const initial = (user?.email ?? '?').charAt(0).toUpperCase();
+  const name = profile.name ?? (user?.user_metadata?.name as string | undefined) ?? 'Tu nombre';
+
+  useEffect(() => {
+    if (user?.id) load(user.id);
+  }, [user?.id, load]);
+
+  const pickPhoto = async () => {
+    if (!user?.id) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+    // Recorte cuadrado: el avatar es un circulo, y asi se elige que entra.
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    await changeAvatar(user.id, result.assets[0].uri);
+  };
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <SectionHeader section="ajustes" />
 
       <View style={styles.profileCard}>
-        <View style={[styles.avatar, { borderColor: colors.primary }]}>
-          <Text style={[typo.bodyStrong, { color: colors.primary }]}>{initial}</Text>
-        </View>
+        {/* Tocar la foto la cambia; sin foto se ven las iniciales. */}
+        <Pressable
+          onPress={pickPhoto}
+          disabled={isSaving}
+          style={({ pressed }) => pressed && { opacity: 0.75 }}
+          accessibilityRole="button"
+          accessibilityLabel={profile.avatarUrl ? 'Cambiar foto de perfil' : 'Agregar foto de perfil'}
+        >
+          <Avatar name={name} imageUrl={profile.avatarUrl} size={72} />
+          {isSaving && (
+            <View style={styles.avatarBusy}>
+              <Spinner color="#FFFFFF" />
+            </View>
+          )}
+        </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>
-            {(user?.user_metadata?.name as string | undefined) ?? 'Tu nombre'}
-          </Text>
+          <Text style={[typo.bodyStrong, { color: colors.textStrong, fontSize: 17 }]}>{name}</Text>
           <Text style={[typo.caption, { color: colors.textMuted }]}>{user?.email}</Text>
           <View style={[styles.rolePill, { backgroundColor: colors.secondaryTint }]}>
             <Text style={[typo.caption, { color: colors.secondary }]}>
               {settings.account.role === 'artist' ? 'Tatuador' : 'Cliente'}
             </Text>
           </View>
+          <View style={styles.photoActions}>
+            <Pressable onPress={pickPhoto} disabled={isSaving} hitSlop={8} accessibilityRole="button">
+              <Text style={[typo.bodyStrong, { color: colors.secondary, fontSize: 14 }]}>
+                {profile.avatarUrl ? 'Cambiar foto' : 'Agregar foto'}
+              </Text>
+            </Pressable>
+            {profile.avatarUrl && (
+              <Pressable
+                onPress={() => user?.id && removeAvatar(user.id)}
+                disabled={isSaving}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <Text style={[typo.bodyStrong, { color: colors.textMuted, fontSize: 14 }]}>Quitar</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
+      {profileError && <Text style={[typo.caption, { color: colors.danger, marginTop: 8 }]}>{profileError}</Text>}
 
       <Group title="Apariencia">
         <Field label="Tema">
@@ -240,7 +293,18 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderColor: colors.border,
       marginTop: 16,
     },
-    avatar: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+    avatarBusy: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(14,12,16,0.55)',
+    },
+    photoActions: { flexDirection: 'row', gap: 16, marginTop: 8 },
     rolePill: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
     logout: {
       marginTop: 24,

@@ -57,3 +57,18 @@ describe('useProfileStore.removeAvatar', () => {
     expect(images.removeAvatar).toHaveBeenCalledWith(OLD_URL);
   });
 });
+
+describe('useProfileStore.load', () => {
+  it('al entrar con otra cuenta no se ve, ni un instante, la foto de la anterior', async () => {
+    useProfileStore.setState({ profile: { name: 'Antes', avatarUrl: OLD_URL }, userId: 'u1' });
+    let resolve!: (v: unknown) => void;
+    repo.getMyProfile.mockReturnValue(new Promise((r) => (resolve = r)) as never);
+
+    const pending = useProfileStore.getState().load('u2');
+    expect(useProfileStore.getState().profile).toEqual({});
+
+    resolve({ id: 'u2', name: 'Lucía', specialty: '', portfolioImageUrls: [], availableSlots: [] });
+    await pending;
+    expect(useProfileStore.getState().profile).toEqual({ name: 'Lucía', avatarUrl: undefined });
+  });
+});
