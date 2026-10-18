@@ -23,12 +23,15 @@ export function CameraOverlay({
   design,
   scanFrame,
   scanLabel,
+  onRemoveDesign,
 }: {
   cameraRef: React.RefObject<CameraView | null>;
   design?: TattooDesign;
   /** Sin medir todavia el escenario no hay recuadro. */
   scanFrame?: Rect;
   scanLabel: string;
+  /** Arrastrar el boceto al basurero (abajo al centro) lo quita. */
+  onRemoveDesign?: () => void;
 }) {
   const placement = useEditorStore((s) => s.placement);
   const hideBackground = useEditorStore((s) => s.hideBackground);
@@ -50,7 +53,7 @@ export function CameraOverlay({
           settings={skin}
         />
       )}
-      <DesignOverlay design={design} guide={wrap} />
+      <DesignOverlay design={design} guide={wrap} onRemove={onRemoveDesign} />
     </View>
   );
 }

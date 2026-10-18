@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
 import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-native-svg';
@@ -14,6 +15,8 @@ import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-nativ
 import { useEditorStore } from '../../controllers/useEditorStore';
 import type { TattooDesign } from '../../models/tattooDesign';
 import { displayImageUrl } from '../../models/tattooDesign';
+import { isOverTrash, TRASH_REVEAL_DRAG } from '../../models/trashZone';
+import { TrashTarget } from './TrashTarget';
 
 /**
  * Unidad con la que `Placement.offsetX/offsetY` se guardan: son
@@ -80,6 +83,7 @@ function CutoutImage({ uri }: { uri: string }) {
 export function DesignOverlay({
   design,
   guide = false,
+  onRemove,
 }: {
   design?: TattooDesign;
   /**
@@ -88,6 +92,11 @@ export function DesignOverlay({
    * punteado, que es lo que se agarra para moverlo, girarlo y escalarlo.
    */
   guide?: boolean;
+  /**
+   * Si se pasa, arrastrar el boceto hacia abajo hace aparecer un
+   * basurero abajo al centro; soltarlo encima lo quita.
+   */
+  onRemove?: () => void;
 }) {
   const placement = useEditorStore((s) => s.placement);
   const hideBackground = useEditorStore((s) => s.hideBackground);
@@ -110,6 +119,12 @@ export function DesignOverlay({
   const startRotation = useSharedValue(0);
 
   const isGesturing = useSharedValue(false);
+  // Basurero: `trashVisible` lo muestra, `overTrash` es que el boceto ya esta encima.
+  const trashVisible = useSharedValue(0);
+  const overTrash = useSharedValue(0);
+  const canRemove = Boolean(onRemove);
+
+  const remove = () => onRemove?.();
 
   const commit = (next: { x: number; y: number; scale: number; rotation: number }) => {
     setPlacement({
@@ -154,10 +169,28 @@ export function DesignOverlay({
     .onUpdate((e) => {
       translateX.value = clamp(startX.value + e.translationX, -limitX(), limitX());
       translateY.value = clamp(startY.value + e.translationY, -limitY(), limitY());
+      if (!canRemove) return;
+      // Aparece solo al arrastrar HACIA ABAJO: mover el boceto hacia
+      // los lados o hacia arriba no tiene por que mostrar un basurero.
+      if (e.translationY > TRASH_REVEAL_DRAG && trashVisible.value === 0) trashVisible.value = withTiming(1, { duration: 180 });
+      const over = isOverTrash(translateX.value, translateY.value, frameWidth.value, frameHeight.value);
+      overTrash.value = over ? 1 : 0;
     })
-    .onEnd(save)
+    .onEnd(() => {
+      if (canRemove && overTrash.value === 1) {
+        // Cae dentro del basurero y desaparece; la posicion vuelve al
+        // centro para el siguiente boceto.
+        scale.value = withTiming(0, { duration: 160 });
+        isGesturing.value = false;
+        runOnJS(remove)();
+        return;
+      }
+      save();
+    })
     .onFinalize(() => {
       isGesturing.value = false;
+      trashVisible.value = withTiming(0, { duration: 160 });
+      overTrash.value = 0;
     });
 
   const pinch = Gesture.Pinch()
@@ -215,8 +248,13 @@ export function DesignOverlay({
       { translateX: translateX.value },
       { translateY: translateY.value },
       { rotate: `${rotation.value}deg` },
-      { scale: scale.value },
+      // Encima del basurero se encoge: "esto se va".
+      { scale: scale.value * (overTrash.value === 1 ? 0.55 : 1) },
     ],
+    // En modo guia el fantasma se vuelve casi solido mientras hay un
+    // dedo encima: la capa "en la piel" se actualiza al soltar, y sin
+    // esto parecia que el boceto desaparecia al moverlo.
+    ...(guide ? { opacity: isGesturing.value ? 0.85 : 0.22 } : null),
   }));
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -229,7 +267,7 @@ export function DesignOverlay({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none" onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.wrapper, style, guide ? styles.guide : { opacity: placement.opacity }]}>
+        <Animated.View style={[styles.wrapper, guide ? styles.guide : { opacity: placement.opacity }, style]}>
           {hideBackground ? (
             <CutoutImage uri={displayImageUrl(design)} />
           ) : (
@@ -237,6 +275,7 @@ export function DesignOverlay({
           )}
         </Animated.View>
       </GestureDetector>
+      {canRemove && <TrashTarget visible={trashVisible} hot={overTrash} />}
     </View>
   );
 }
@@ -253,7 +292,6 @@ const styles = StyleSheet.create({
   // Casi invisible pero con borde: se ve donde agarrarlo sin tapar
   // el tatuaje aplicado que hay debajo.
   guide: {
-    opacity: 0.22,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: '#FFFFFF',

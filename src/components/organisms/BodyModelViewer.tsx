@@ -26,6 +26,8 @@ export interface BodyModelViewerProps {
   /** Avisa del tamaño al que lo dejo un pellizco dentro de la escena. */
   onSizeChange?: (size: number) => void;
   onError?: (message: string) => void;
+  /** El tatuaje se solto sobre el basurero (arrastrandolo hacia abajo). */
+  onRemove?: () => void;
 }
 
 /**
@@ -56,6 +58,7 @@ export function BodyModelViewer({
   cutout,
   onSizeChange,
   onError,
+  onRemove,
 }: BodyModelViewerProps) {
   const webRef = useRef<WebView>(null);
 
@@ -114,6 +117,7 @@ export function BodyModelViewer({
           // El pellizco cambia el tamaño dentro de la escena; sin esto
           // el deslizador de la hoja seguiria marcando el valor viejo.
           if (message.type === 'size' && typeof message.value === 'number') onSizeChange?.(message.value);
+          if (message.type === 'remove') onRemove?.();
         } catch {
           // Mensaje que no es nuestro; se ignora.
         }

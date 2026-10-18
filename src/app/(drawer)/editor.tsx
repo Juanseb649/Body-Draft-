@@ -34,6 +34,7 @@ import {
   type BodySilhouette,
   type BodyZone,
 } from '../../models/bodyZone';
+import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
 import { AXIS_RANGE, CURVATURE_RANGE, WIDTH_SCALE_RANGE, type InkMode } from '../../models/skinWrap';
 import { scanFrameFor, type Size } from '../../models/zoneScan';
@@ -107,6 +108,8 @@ export default function TattooEditorScreen() {
   const scanLabel = proposal.bodyZone
     ? `Encuadra tu ${bodyZoneLabel(proposal.bodyZone).toLowerCase()}`
     : 'Encuadra la zona del tatuaje';
+  // Lo ultimo que se tiro al basurero, para poder deshacerlo.
+  const [removed, setRemoved] = useState<{ designId: string; placement: Placement } | null>(null);
   const [exportRequest, setExportRequest] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
   const [skinError, setSkinError] = useState<string | undefined>(undefined);
@@ -155,6 +158,7 @@ export default function TattooEditorScreen() {
     };
     await uploadDesign(sketch);
     proposal.selectDesign(sketch.id);
+    setRemoved(null);
   };
 
   /**
@@ -179,6 +183,20 @@ export default function TattooEditorScreen() {
   const onStageLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setStageSize({ width, height });
+  };
+
+  /** El boceto cayo en el basurero (camara o maniquin). */
+  const removeDesign = () => {
+    if (!proposal.designId) return;
+    setRemoved({ designId: proposal.designId, placement: proposal.placement });
+    proposal.removeDesign();
+  };
+
+  const undoRemove = () => {
+    if (!removed) return;
+    proposal.selectDesign(removed.designId);
+    proposal.setPlacement(removed.placement);
+    setRemoved(null);
   };
 
   /** Pide al WebView la foto con el tatuaje ya aplicado (ver onSkinExported). */
@@ -258,7 +276,15 @@ export default function TattooEditorScreen() {
         );
       }
       if (permission?.granted) {
-        return <CameraOverlay cameraRef={cameraRef} design={design} scanFrame={scanFrame} scanLabel={scanLabel} />;
+        return (
+          <CameraOverlay
+            cameraRef={cameraRef}
+            design={design}
+            scanFrame={scanFrame}
+            scanLabel={scanLabel}
+            onRemoveDesign={removeDesign}
+          />
+        );
       }
       return (
         <View style={styles.center}>
@@ -292,6 +318,7 @@ export default function TattooEditorScreen() {
           opacity={proposal.placement.opacity}
           cutout={proposal.hideBackground}
           onSizeChange={(scale) => proposal.setPlacement({ scale })}
+          onRemove={removeDesign}
         />
       );
     }
@@ -325,9 +352,24 @@ export default function TattooEditorScreen() {
           </Pressable>
         </View>
 
+        {/* Sin boceto: un atajo para adjuntar otro (y deshacer, si se
+            acaba de tirar al basurero). Sobre el disparador, no debajo. */}
         {!design && (
-          <View style={[styles.emptyHint, { bottom: 16 }]}>
-            <Text style={[typo.caption, { color: '#FFFFFF' }]}>Adjunta un boceto para verlo sobre el cuerpo</Text>
+          <View style={[styles.emptyHint, { bottom: 104 }]}>
+            {removed && (
+              <>
+                <Text style={[typo.caption, { color: '#FFFFFF' }]}>Boceto quitado</Text>
+                <Pressable onPress={undoRemove} hitSlop={10} accessibilityRole="button">
+                  <Text style={[typo.bodyStrong, styles.hintAction]}>Deshacer</Text>
+                </Pressable>
+                <Text style={[typo.caption, { color: 'rgba(255,255,255,0.5)' }]}>·</Text>
+              </>
+            )}
+            <Pressable onPress={attachSketch} hitSlop={10} accessibilityRole="button">
+              <Text style={[typo.bodyStrong, styles.hintAction]}>
+                {removed ? 'Adjuntar otro' : 'Adjunta un boceto para verlo sobre el cuerpo'}
+              </Text>
+            </Pressable>
           </View>
         )}
 
@@ -676,7 +718,11 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       justifyContent: 'center',
       backgroundColor: 'rgba(0,0,0,0.35)',
     },
+    hintAction: { color: '#FFFFFF', fontSize: 14, textDecorationLine: 'underline' },
     emptyHint: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
       position: 'absolute',
       alignSelf: 'center',
       paddingHorizontal: 14,
