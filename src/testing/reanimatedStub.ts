@@ -14,7 +14,7 @@ import { Text, View } from 'react-native';
 const identity = <T>(v: T) => v;
 
 export default { View, Text, createAnimatedComponent: identity };
-export const Easing = { bezier: () => identity, linear: identity };
+export const Easing = { bezier: () => identity, linear: identity, quad: identity, inOut: () => identity };
 export const useSharedValue = <T>(v: T) => ({ value: v, get: () => v, set: () => {} });
 export const useAnimatedStyle = () => ({});
 export const useAnimatedScrollHandler = () => () => {};

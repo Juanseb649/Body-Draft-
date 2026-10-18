@@ -2,8 +2,8 @@ import Slider from '@react-native-community/slider';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
@@ -13,11 +13,11 @@ import { MenuButton } from '../../components/atoms/MenuButton';
 import { SectionIcon } from '../../components/atoms/SectionIcon';
 import { Segmented } from '../../components/atoms/Segmented';
 import { Spinner } from '../../components/atoms/Spinner';
-import { DesignOverlay } from '../../components/molecules/DesignOverlay';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
 import { CameraOverlay } from '../../components/organisms/CameraOverlay';
 import { AiPhotoConsentModal } from '../../components/organisms/AiPhotoConsentModal';
 import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
+import { ZoneScanStage } from '../../components/organisms/ZoneScanStage';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useBodyModel } from '../../controllers/useBodyModel';
 import { useCameraController } from '../../controllers/useCameraController';
@@ -25,6 +25,7 @@ import { useDataUri } from '../../controllers/useDataUri';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
+import { useZoneScanStore, type ScanTool } from '../../controllers/useZoneScanStore';
 import {
   BODY_SILHOUETTES,
   BODY_ZONES,
@@ -34,6 +35,7 @@ import {
   type BodyZone,
 } from '../../models/bodyZone';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
+import { scanFrameFor, type Size } from '../../models/zoneScan';
 import { type as typo, useTheme } from '../../theme';
 
 type Mode = 'camera' | 'mannequin';
@@ -41,6 +43,18 @@ type Mode = 'camera' | 'mannequin';
 const SILHOUETTE_LABEL: Record<BodySilhouette, string> = {
   masculine: 'Masculino',
   feminine: 'Femenino',
+};
+
+const SCAN_TOOLS: { value: ScanTool; label: string }[] = [
+  { value: 'boceto', label: 'Boceto' },
+  { value: 'ampliar', label: 'Ampliar' },
+  { value: 'perfilar', label: 'Perfilar' },
+];
+
+const SCAN_TOOL_HINT: Record<ScanTool, string> = {
+  boceto: 'Mueve, gira y escala el boceto sobre la foto.',
+  ampliar: 'Pellizca para acercar y arrastra para recorrer la zona. Doble toque: x2,5 o la foto entera.',
+  perfilar: 'Con un dedo dibuja el perfil del tatuaje sobre la piel; con dos, acerca para afinar el detalle.',
 };
 
 const MODES: { value: Mode; label: string; hint: string; icon: IconName }[] = [
@@ -75,6 +89,16 @@ export default function TattooEditorScreen() {
   const setAllowAiPhoto = useSettingsStore((s) => s.setAllowAiPhotoUpload);
 
   const [mode, setMode] = useState<Mode>('camera');
+  const [stageSize, setStageSize] = useState<Size>({ width: 0, height: 0 });
+  const scan = useZoneScanStore();
+  // El recuadro guia cambia de forma con la zona elegida en la hoja.
+  const scanFrame = useMemo(
+    () => (stageSize.width > 0 ? scanFrameFor(stageSize, proposal.bodyZone) : undefined),
+    [stageSize, proposal.bodyZone],
+  );
+  const scanLabel = proposal.bodyZone
+    ? `Encuadra tu ${bodyZoneLabel(proposal.bodyZone).toLowerCase()}`
+    : 'Encuadra la zona del tatuaje';
   const [consentOpen, setConsentOpen] = useState(false);
   // La primera vez se abre solo. Despues queda a un toque del boton (i).
   const [introOpen, setIntroOpen] = useState(!seenIntro);
@@ -115,10 +139,28 @@ export default function TattooEditorScreen() {
     proposal.selectDesign(sketch.id);
   };
 
-  /** Dispara la foto: a partir de aqui se revisa sobre la captura. */
+  /**
+   * Dispara la foto: a partir de aqui se revisa sobre la captura. La
+   * foto se abre ya acercada al recuadro guia, que es la zona que se
+   * encuadro: se trabaja sobre la piel, no sobre todo lo que entro en
+   * cuadro. "Ver la foto entera" deshace ese acercamiento.
+   */
   const takePhoto = async () => {
     const uri = await capture();
-    if (uri) proposal.attachCameraSnapshot(uri);
+    if (!uri) return;
+    scan.reset();
+    proposal.attachCameraSnapshot(uri);
+    scan.focusZone(stageSize, proposal.bodyZone);
+  };
+
+  const retakePhoto = () => {
+    scan.reset();
+    proposal.discardCameraSnapshot();
+  };
+
+  const onStageLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setStageSize({ width, height });
   };
 
   const composeWithAI = async () => {
@@ -152,14 +194,16 @@ export default function TattooEditorScreen() {
       if (proposal.cameraSnapshotUrl) {
         return (
           <View style={{ flex: 1 }}>
-            <Image
-              source={{ uri: proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="contain"
-            />
             {/* Sobre el resultado de la IA el boceto ya esta dentro
-                de la imagen: volver a superponerlo lo duplicaria. */}
-            {!proposal.renderedImageUrl && <DesignOverlay design={design} />}
+                de la imagen: volver a superponerlo lo duplicaria. La
+                foto va en "cover", igual que la camara en vivo, para
+                que el boceto quede donde se vio al disparar. */}
+            <ZoneScanStage
+              uri={proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl}
+              design={design}
+              showDesign={!proposal.renderedImageUrl}
+              fit={proposal.renderedImageUrl ? 'contain' : 'cover'}
+            />
             {proposal.isRendering && (
               <View style={styles.rendering}>
                 <Spinner color="#FFFFFF" />
@@ -169,7 +213,9 @@ export default function TattooEditorScreen() {
           </View>
         );
       }
-      if (permission?.granted) return <CameraOverlay cameraRef={cameraRef} design={design} />;
+      if (permission?.granted) {
+        return <CameraOverlay cameraRef={cameraRef} design={design} scanFrame={scanFrame} scanLabel={scanLabel} />;
+      }
       return (
         <View style={styles.center}>
           <Icon name="camera" size={44} color={colors.textMuted} />
@@ -216,7 +262,7 @@ export default function TattooEditorScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.stage}>
+      <View style={styles.stage} onLayout={onStageLayout}>
         {renderStage()}
 
         <View style={[styles.topBar, { top: insets.top + 8 }]}>
@@ -300,6 +346,50 @@ export default function TattooEditorScreen() {
 
         {mode === 'camera' && proposal.cameraSnapshotUrl && (
           <>
+            <Text style={styles.label}>Sobre la foto</Text>
+            <Segmented value={scan.tool} onChange={scan.setTool} options={SCAN_TOOLS} />
+            <Text style={styles.hint}>{SCAN_TOOL_HINT[scan.tool]}</Text>
+
+            {scan.tool === 'ampliar' && (
+              <View style={styles.toolRow}>
+                <AppButton
+                  label="Enfocar la zona"
+                  variant="secondary"
+                  size="S"
+                  onPress={() => scan.focusZone(stageSize, proposal.bodyZone)}
+                />
+                <AppButton label="Ver la foto entera" variant="ghost" size="S" onPress={scan.resetView} />
+              </View>
+            )}
+
+            {scan.tool === 'perfilar' && (
+              <View style={styles.toolRow}>
+                <Chip label="Fucsia" selected={scan.tone === 'fuchsia'} onPress={() => scan.setTone('fuchsia')} tone="fuchsia" />
+                <Chip label="Azul" selected={scan.tone === 'blue'} onPress={() => scan.setTone('blue')} tone="blue" />
+                <View style={{ flex: 1 }} />
+                <Pressable
+                  onPress={scan.undo}
+                  disabled={scan.strokes.length === 0}
+                  style={[styles.toolButton, scan.strokes.length === 0 && { opacity: 0.4 }]}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Deshacer el último trazo"
+                >
+                  <Icon name="undo" size={20} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  onPress={scan.clearStrokes}
+                  disabled={scan.strokes.length === 0}
+                  style={[styles.toolButton, scan.strokes.length === 0 && { opacity: 0.4 }]}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Borrar todo el perfil"
+                >
+                  <Icon name="trash" size={20} color={colors.text} />
+                </Pressable>
+              </View>
+            )}
+
             <AppButton
               label={proposal.renderedImageUrl ? 'Rehacer la composición' : 'Ver resultado realista'}
               onPress={composeWithAI}
@@ -315,7 +405,7 @@ export default function TattooEditorScreen() {
               label="Repetir la foto"
               variant="secondary"
               size="M"
-              onPress={proposal.discardCameraSnapshot}
+              onPress={retakePhoto}
             />
           </>
         )}
@@ -499,6 +589,15 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     error: { ...typo.caption, color: colors.danger },
     zoneRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
+    toolRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    toolButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceRaised,
+    },
     sliderLabel: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   });
 }
