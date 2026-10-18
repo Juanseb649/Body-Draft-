@@ -10,6 +10,8 @@ interface ProfileRow {
   location: string | null;
   portfolio_image_urls: string[] | null;
   rating: number | null;
+  /** No existe hasta aplicar 20261018200000_profile_names_and_avatars.sql. */
+  avatar_url?: string | null;
 }
 
 function toArtist(row: ProfileRow): Artist {
@@ -22,6 +24,7 @@ function toArtist(row: ProfileRow): Artist {
     location: row.location ?? undefined,
     availableSlots: [],
     rating: row.rating ?? undefined,
+    avatarUrl: row.avatar_url ?? undefined,
   };
 }
 
@@ -87,6 +90,12 @@ export class ArtistRepository {
       .single();
     if (error) throw error;
     return toArtist(data as ProfileRow);
+  }
+
+  /** Pone (o quita, con null) la foto del perfil propio. */
+  async setMyAvatar(userId: string, avatarUrl: string | null): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', userId);
+    if (error) throw error;
   }
 }
 

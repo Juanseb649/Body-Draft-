@@ -7,6 +7,7 @@ interface CommentRow {
   design_id: string;
   user_id: string;
   author_name: string | null;
+  author_avatar_url?: string | null;
   body: string;
   created_at: string;
 }
@@ -16,7 +17,10 @@ function toComment(row: CommentRow): DesignComment {
     id: row.id,
     designId: row.design_id,
     userId: row.user_id,
+    // Con la migracion 20261018200000 la base siempre pone un nombre
+    // (perfil, registro o correo); esto es solo por si faltara aplicarla.
     authorName: row.author_name ?? 'Alguien',
+    authorAvatarUrl: row.author_avatar_url ?? undefined,
     body: row.body,
     createdAt: row.created_at,
   };

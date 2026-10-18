@@ -15,6 +15,8 @@ export interface DesignComment {
   userId: string;
   /** Lo rellena la base desde `profiles`; nunca lo manda la app. */
   authorName: string;
+  /** Foto del autor, tambien copiada por la base (la RLS no deja leer perfiles ajenos). */
+  authorAvatarUrl?: string;
   body: string;
   createdAt: string;
 }
