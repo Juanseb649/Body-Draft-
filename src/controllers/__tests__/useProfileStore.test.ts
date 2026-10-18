@@ -2,7 +2,7 @@ import { artistRepository, imageUploadService } from '../../core/services';
 import { useProfileStore } from '../useProfileStore';
 
 jest.mock('../../core/services', () => ({
-  artistRepository: { getMyProfile: jest.fn(), setMyAvatar: jest.fn() },
+  artistRepository: { getMyProfile: jest.fn(), setMyAvatar: jest.fn(), setMyName: jest.fn() },
   imageUploadService: { uploadAvatar: jest.fn(), removeAvatar: jest.fn() },
 }));
 
@@ -41,7 +41,7 @@ describe('useProfileStore.changeAvatar', () => {
     expect(images.removeAvatar).toHaveBeenCalledWith(NEW_URL);
     expect(images.removeAvatar).not.toHaveBeenCalledWith(OLD_URL);
     expect(useProfileStore.getState().profile.avatarUrl).toBe(OLD_URL);
-    expect(useProfileStore.getState().error).toBe('RLS');
+    expect(useProfileStore.getState().error).toMatch(/RLS/);
   });
 });
 
@@ -70,5 +70,26 @@ describe('useProfileStore.load', () => {
     resolve({ id: 'u2', name: 'Lucía', specialty: '', portfolioImageUrls: [], availableSlots: [] });
     await pending;
     expect(useProfileStore.getState().profile).toEqual({ name: 'Lucía', avatarUrl: undefined });
+  });
+});
+
+describe('useProfileStore — errores y nombre', () => {
+  it('"Bucket not found" se muestra como un mensaje que se entiende', async () => {
+    images.uploadAvatar.mockRejectedValue(new Error('Bucket not found'));
+    await useProfileStore.getState().changeAvatar('u1', 'file:///foto.jpg');
+    expect(useProfileStore.getState().error).toMatch(/no están activadas en el servidor/);
+  });
+
+  it('renombrar guarda el nombre limpio en el perfil', async () => {
+    repo.setMyName.mockResolvedValue();
+    await expect(useProfileStore.getState().rename('u1', '  Sebas   Ibarra ')).resolves.toBe(true);
+    expect(repo.setMyName).toHaveBeenCalledWith('u1', 'Sebas Ibarra');
+    expect(useProfileStore.getState().profile.name).toBe('Sebas Ibarra');
+  });
+
+  it('un nombre vacio ni llega al servidor', async () => {
+    await expect(useProfileStore.getState().rename('u1', '   ')).resolves.toBe(false);
+    expect(repo.setMyName).not.toHaveBeenCalled();
+    expect(useProfileStore.getState().error).toBeTruthy();
   });
 });

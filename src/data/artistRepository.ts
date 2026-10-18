@@ -92,6 +92,12 @@ export class ArtistRepository {
     return toArtist(data as ProfileRow);
   }
 
+  /** Cambia el nombre visible del perfil propio (la RLS solo deja el propio). */
+  async setMyName(userId: string, name: string): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ name }).eq('id', userId);
+    if (error) throw error;
+  }
+
   /** Pone (o quita, con null) la foto del perfil propio. */
   async setMyAvatar(userId: string, avatarUrl: string | null): Promise<void> {
     const { error } = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', userId);

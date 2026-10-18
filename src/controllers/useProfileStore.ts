@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import { artistRepository, imageUploadService } from '../core/services';
+import { friendlyProfileError, validateDisplayName } from '../models/profileErrors';
 
 /** Lo que la app muestra de la cuenta con la sesion abierta. */
 export interface MyProfile {
@@ -20,10 +21,14 @@ interface ProfileState {
   changeAvatar: (userId: string, localUri: string) => Promise<boolean>;
   /** Quita la foto: vuelven las iniciales. */
   removeAvatar: (userId: string) => Promise<boolean>;
+  /**
+   * Cambia el nombre visible. Sus comentarios lo reflejan solos: lo hace
+   * un trigger de la base (migracion 20261018200000).
+   */
+  rename: (userId: string, raw: string) => Promise<boolean>;
+  clearError: () => void;
   reset: () => void;
 }
-
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * Controller del perfil propio: nombre y foto. La foto vive en el
@@ -65,7 +70,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       if (previous) await imageUploadService.removeAvatar(previous).catch(() => {});
       return true;
     } catch (e) {
-      set({ isSaving: false, error: messageOf(e) });
+      set({ isSaving: false, error: friendlyProfileError(e) });
       return false;
     }
   },
@@ -80,10 +85,29 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       await imageUploadService.removeAvatar(previous).catch(() => {});
       return true;
     } catch (e) {
-      set({ isSaving: false, error: messageOf(e) });
+      set({ isSaving: false, error: friendlyProfileError(e) });
       return false;
     }
   },
+
+  rename: async (userId, raw) => {
+    const valid = validateDisplayName(raw);
+    if (!valid.ok) {
+      set({ error: valid.error });
+      return false;
+    }
+    set({ isSaving: true, error: undefined });
+    try {
+      await artistRepository.setMyName(userId, valid.name);
+      set({ profile: { ...get().profile, name: valid.name }, isSaving: false });
+      return true;
+    } catch (e) {
+      set({ isSaving: false, error: friendlyProfileError(e) });
+      return false;
+    }
+  },
+
+  clearError: () => set({ error: undefined }),
 
   reset: () => set({ profile: {}, userId: undefined, isSaving: false, error: undefined }),
 }));
