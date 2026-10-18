@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '../../components/atoms/Avatar';
@@ -10,6 +10,7 @@ import { SectionHeader } from '../../components/molecules/SectionHeader';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useProfileStore } from '../../controllers/useProfileStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
+import { NAME_MAX_LENGTH } from '../../models/profileErrors';
 import { palette, type as typo, useTheme } from '../../theme';
 
 const REMINDER_OPTIONS = [2, 24, 48] as const;
@@ -22,9 +23,26 @@ export default function SettingsScreen() {
   const { user, signOut, updateRole } = useAuthStore();
   const settings = useSettingsStore();
 
-  const { profile, isSaving, error: profileError, load, changeAvatar, removeAvatar } = useProfileStore();
+  const { profile, isSaving, error: profileError, load, changeAvatar, removeAvatar, rename, clearError } =
+    useProfileStore();
   const styles = createStyles(colors);
   const name = profile.name ?? (user?.user_metadata?.name as string | undefined) ?? 'Tu nombre';
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  const startEditingName = () => {
+    clearError();
+    setDraftName(profile.name ?? (user?.user_metadata?.name as string | undefined) ?? '');
+    setEditingName(true);
+  };
+  const cancelName = () => {
+    clearError();
+    setEditingName(false);
+  };
+  const saveName = async () => {
+    if (!user?.id) return;
+    if (await rename(user.id, draftName)) setEditingName(false);
+  };
 
   useEffect(() => {
     if (user?.id) load(user.id);
@@ -91,6 +109,58 @@ export default function SettingsScreen() {
             )}
           </View>
         </View>
+      </View>
+
+      {/* Nombre de usuario: el que se ve en Inicio, en el menu y firmando
+          tus comentarios (la base actualiza los anteriores sola). */}
+      <View style={styles.nameRow}>
+        <Text style={styles.nameLabel}>Nombre de usuario</Text>
+        {editingName ? (
+          <>
+            <TextInput
+              value={draftName}
+              onChangeText={setDraftName}
+              autoFocus
+              maxLength={NAME_MAX_LENGTH + 10}
+              returnKeyType="done"
+              onSubmitEditing={saveName}
+              placeholder="Cómo quieres que te vean"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.secondary}
+              style={styles.nameInput}
+              accessibilityLabel="Nombre de usuario"
+            />
+            <View style={styles.nameActions}>
+              <Pressable onPress={cancelName} hitSlop={8} accessibilityRole="button">
+                <Text style={[typo.bodyStrong, { color: colors.textMuted }]}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveName}
+                disabled={isSaving}
+                style={({ pressed }) => [styles.saveName, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+              >
+                {isSaving ? (
+                  <Spinner size={18} color={colors.onPrimary} />
+                ) : (
+                  <Text style={[typo.bodyStrong, { color: colors.onPrimary }]}>Guardar</Text>
+                )}
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <Pressable
+            onPress={startEditingName}
+            style={({ pressed }) => [styles.nameValue, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Nombre de usuario: ${name}. Editar`}
+          >
+            <Text style={[typo.body, { color: colors.textStrong, flex: 1 }]} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Editar</Text>
+          </Pressable>
+        )}
       </View>
       {profileError && <Text style={[typo.caption, { color: colors.danger, marginTop: 8 }]}>{profileError}</Text>}
 
@@ -305,6 +375,22 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       backgroundColor: 'rgba(14,12,16,0.55)',
     },
     photoActions: { flexDirection: 'row', gap: 16, marginTop: 8 },
+    nameRow: { marginTop: 12, padding: 16, borderRadius: 20, backgroundColor: colors.surface, gap: 8 },
+    nameLabel: { ...typo.bodyStrong, fontSize: 14, color: colors.textMuted },
+    nameValue: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+    nameInput: {
+      ...typo.body,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.surfaceSunken,
+      borderWidth: 1.5,
+      borderColor: colors.secondary,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    nameActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 20 },
+    saveName: { minHeight: 40, minWidth: 96, paddingHorizontal: 18, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     rolePill: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
     logout: {
       marginTop: 24,
