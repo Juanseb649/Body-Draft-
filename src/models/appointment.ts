@@ -10,6 +10,8 @@ export interface Appointment {
   artistId: string;
   /** Propuesta (diseno + zona + colocacion) que se llevara a la cita. */
   proposalId?: string;
+  /** Diseno publicado por el tatuador del que salio la cita (ver detalle del diseno). */
+  designId?: string;
   dateTime: string;
   status: AppointmentStatus;
   notes?: string;

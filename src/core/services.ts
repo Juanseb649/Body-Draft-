@@ -1,6 +1,7 @@
 import { AppointmentRepository } from '../data/appointmentRepository';
 import { ArtistRepository } from '../data/artistRepository';
 import { DesignRepository } from '../data/designRepository';
+import { SocialRepository } from '../data/socialRepository';
 import type { AIService } from '../services/aiService';
 import type { AuthService } from '../services/authService';
 import { SupabaseAuthService } from '../services/authService';
@@ -47,3 +48,4 @@ export const imageUploadService: ImageUploadService = new SupabaseImageUploadSer
 export const designRepository = new DesignRepository(storageService, aiService, imageUploadService);
 export const artistRepository = new ArtistRepository();
 export const appointmentRepository = new AppointmentRepository();
+export const socialRepository = new SocialRepository();

@@ -25,6 +25,7 @@ siembra cuentas cuyo rol lo escribe el trigger que define
 | `20261002120000_role_from_signup.sql` | El rol y la especialidad se eligen **al registrarse**, no después en Ajustes |
 | `20261002130000_seed_demo_artists.sql` | Dos tatuadores de demostración con portafolio (**solo desarrollo**) |
 | `20261002140000_portfolio_storage.sql` | Bucket `portfolio` de Storage: lectura pública, escritura solo en la carpeta propia |
+| `20261018120000_design_likes_comments.sql` | `design_likes` y `design_comments` (me gusta y comentarios públicos bajo un diseño) y `appointments.design_id` (la cita recuerda de qué diseño salió) |
 
 ## Comprobar que quedó bien
 
@@ -38,6 +39,17 @@ Inicia sesión con una de las cuentas sembradas y lee `profiles` y
 `designs` por la API pública, con la misma anon key y las mismas
 policies de RLS que usa la app — o sea, comprueba lo que la app va a
 ver, no lo que hay en la base por detrás.
+
+## Tests de la base (pgTAP)
+
+`tests/database/*.test.sql` comprueban las policies de RLS con usuarios
+simulados (cada archivo corre en una transacción que se deshace). Hace
+falta Docker y la base local de la CLI:
+
+```bash
+npx supabase start
+npx supabase test db
+```
 
 ## Adoptar la Supabase CLI (recomendado, no obligatorio)
 

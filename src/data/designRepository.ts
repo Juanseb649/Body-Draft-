@@ -93,6 +93,17 @@ export class DesignRepository {
     return (data as DesignRow[]).map((row) => toFeedItem(row).design);
   }
 
+  /** Un trabajo publicado, con el nombre de su tatuador (detalle del diseno). */
+  async getArtistDesign(designId: string): Promise<ArtistFeedItem | undefined> {
+    const { data, error } = await supabase
+      .from('designs')
+      .select('*, profiles(name)')
+      .eq('id', designId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? toFeedItem(data as DesignRow) : undefined;
+  }
+
   saveDesign(design: TattooDesign): Promise<void> {
     return this.storage.saveDesign(design);
   }
