@@ -7,7 +7,17 @@ import { defaultPlacement, type Placement } from '../models/placement';
 import type { TattooProposal } from '../models/tattooProposal';
 
 interface EditorState extends TattooProposal {
+  /**
+   * Elige el boceto. Si es OTRO boceto, vuelve al centro y a su tamaño
+   * de partida: antes heredaba la posicion del anterior, y si ese se
+   * habia arrastrado al borde, el nuevo aparecia fuera de la vista.
+   */
   selectDesign: (designId: string) => void;
+  /**
+   * Quita el boceto de la propuesta (el basurero). No lo borra de "Mis
+   * diseños": solo deja la propuesta libre para adjuntar otro.
+   */
+  removeDesign: () => void;
   setZone: (zone: BodyZone) => void;
   setSilhouette: (silhouette: BodySilhouette) => void;
   /** Aplica de golpe lo que dejo un gesto (mover + girar + escalar). */
@@ -71,7 +81,15 @@ function initialProposal(): TattooProposal {
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProposal(),
 
-  selectDesign: (designId) => set({ designId }),
+  selectDesign: (designId) =>
+    set((s) =>
+      s.designId === designId
+        ? { designId }
+        : { designId, placement: { ...defaultPlacement(), opacity: s.placement.opacity }, renderedImageUrl: undefined },
+    ),
+
+  removeDesign: () =>
+    set((s) => ({ designId: '', placement: { ...defaultPlacement(), opacity: s.placement.opacity }, renderedImageUrl: undefined })),
   setZone: (bodyZone) => set({ bodyZone }),
 
   // Cambiar de maniquin olvida la zona: es otro cuerpo, en otra pose, y
