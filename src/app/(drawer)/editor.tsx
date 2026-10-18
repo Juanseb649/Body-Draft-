@@ -15,6 +15,7 @@ import { Segmented } from '../../components/atoms/Segmented';
 import { Spinner } from '../../components/atoms/Spinner';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
 import { CameraOverlay } from '../../components/organisms/CameraOverlay';
+import { BodyZonePicker } from '../../components/molecules/BodyZonePicker';
 import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
 import { ZoneScanStage } from '../../components/organisms/ZoneScanStage';
 import { useAuthStore } from '../../controllers/useAuthStore';
@@ -25,14 +26,7 @@ import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { useZoneScanStore, type ScanTool } from '../../controllers/useZoneScanStore';
-import {
-  BODY_SILHOUETTES,
-  BODY_ZONES,
-  BODY_ZONE_LABELS,
-  bodyZoneLabel,
-  type BodySilhouette,
-  type BodyZone,
-} from '../../models/bodyZone';
+import { BODY_SILHOUETTES, bodyZoneLabel, type BodySilhouette } from '../../models/bodyZone';
 import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
 import { AXIS_RANGE, CURVATURE_RANGE, WIDTH_SCALE_RANGE, type InkMode } from '../../models/skinWrap';
@@ -601,18 +595,8 @@ export default function TattooEditorScreen() {
           </>
         )}
 
-        <Text style={styles.label}>Zona del cuerpo</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.zoneRow}>
-          {BODY_ZONES.map((zone: BodyZone) => (
-            <Chip
-              key={zone}
-              label={BODY_ZONE_LABELS[zone]}
-              selected={proposal.bodyZone === zone}
-              onPress={() => proposal.setZone(zone)}
-              tone="blue"
-            />
-          ))}
-        </ScrollView>
+        <BodyZonePicker value={proposal.bodyZone} onChange={proposal.setZone} />
+
 
         <View style={styles.sliderLabel}>
           <Text style={[typo.bodyStrong, { color: colors.text }]}>Tamaño</Text>

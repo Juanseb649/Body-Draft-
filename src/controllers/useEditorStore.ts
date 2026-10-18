@@ -18,7 +18,8 @@ interface EditorState extends TattooProposal {
    * diseños": solo deja la propuesta libre para adjuntar otro.
    */
   removeDesign: () => void;
-  setZone: (zone: BodyZone) => void;
+  /** Sin zona (undefined) el maniqui se ve entero. */
+  setZone: (zone?: BodyZone) => void;
   setSilhouette: (silhouette: BodySilhouette) => void;
   /** Aplica de golpe lo que dejo un gesto (mover + girar + escalar). */
   setPlacement: (patch: Partial<Placement>) => void;
