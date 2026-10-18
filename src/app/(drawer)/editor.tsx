@@ -25,7 +25,7 @@ import { useDataUri } from '../../controllers/useDataUri';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
-import { useZoneScanStore, type ScanTool } from '../../controllers/useZoneScanStore';
+import { useZoneScanStore } from '../../controllers/useZoneScanStore';
 import { BODY_SILHOUETTES, bodyZoneLabel, type BodySilhouette } from '../../models/bodyZone';
 import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
@@ -45,18 +45,6 @@ const INK_OPTIONS: { value: InkMode; label: string }[] = [
   { value: 'color', label: 'Color' },
   { value: 'bn', label: 'Blanco y negro' },
 ];
-
-const SCAN_TOOLS: { value: ScanTool; label: string }[] = [
-  { value: 'boceto', label: 'Boceto' },
-  { value: 'ampliar', label: 'Ampliar' },
-  { value: 'perfilar', label: 'Perfilar' },
-];
-
-const SCAN_TOOL_HINT: Record<ScanTool, string> = {
-  boceto: 'Mueve, gira y escala el boceto sobre la foto.',
-  ampliar: 'Pellizca para acercar y arrastra para recorrer la zona. Doble toque: x2,5 o la foto entera.',
-  perfilar: 'Con un dedo dibuja el perfil del tatuaje sobre la piel; con dos, acerca para afinar el detalle.',
-};
 
 const MODES: { value: Mode; label: string; hint: string; icon: IconName }[] = [
   { value: 'camera', label: 'Cámara', hint: 'Sobre tu piel', icon: 'camera' },
@@ -230,6 +218,7 @@ export default function TattooEditorScreen() {
               design={design}
               showDesign={!proposal.renderedImageUrl}
               fit={proposal.renderedImageUrl ? 'contain' : 'cover'}
+              onRemoveDesign={removeDesign}
               frame={scanFrame}
               exportRequest={exportRequest}
               onExported={onSkinExported}
@@ -488,49 +477,14 @@ export default function TattooEditorScreen() {
             )}
             {skinError && <Text style={styles.error}>{skinError}</Text>}
 
-            <Text style={styles.label}>Sobre la foto</Text>
-            <Segmented value={scan.tool} onChange={scan.setTool} options={SCAN_TOOLS} />
-            <Text style={styles.hint}>{SCAN_TOOL_HINT[scan.tool]}</Text>
-
-            {scan.tool === 'ampliar' && (
-              <View style={styles.toolRow}>
-                <AppButton
-                  label="Enfocar la zona"
-                  variant="secondary"
-                  size="S"
-                  onPress={() => scan.focusZone(stageSize, proposal.bodyZone)}
-                />
-                <AppButton label="Ver la foto entera" variant="ghost" size="S" onPress={scan.resetView} />
-              </View>
-            )}
-
-            {scan.tool === 'perfilar' && (
-              <View style={styles.toolRow}>
-                <Chip label="Fucsia" selected={scan.tone === 'fuchsia'} onPress={() => scan.setTone('fuchsia')} tone="fuchsia" />
-                <Chip label="Azul" selected={scan.tone === 'blue'} onPress={() => scan.setTone('blue')} tone="blue" />
-                <View style={{ flex: 1 }} />
-                <Pressable
-                  onPress={scan.undo}
-                  disabled={scan.strokes.length === 0}
-                  style={[styles.toolButton, scan.strokes.length === 0 && { opacity: 0.4 }]}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel="Deshacer el último trazo"
-                >
-                  <Icon name="undo" size={20} color={colors.text} />
-                </Pressable>
-                <Pressable
-                  onPress={scan.clearStrokes}
-                  disabled={scan.strokes.length === 0}
-                  style={[styles.toolButton, scan.strokes.length === 0 && { opacity: 0.4 }]}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel="Borrar todo el perfil"
-                >
-                  <Icon name="trash" size={20} color={colors.text} />
-                </Pressable>
-              </View>
-            )}
+            {/* Sin modos: lo que hacen los dedos depende de donde empiezan. */}
+            <Text style={styles.hint}>
+              Sobre el diseño: un dedo lo mueve y dos lo giran y cambian su tamaño; llévalo abajo al centro para
+              quitarlo. Fuera del diseño: pellizca para acercar la foto y arrástrala para recorrerla.
+            </Text>
+            <View style={styles.toolRow}>
+              <AppButton label="Ver la foto entera" variant="ghost" size="S" onPress={scan.resetView} />
+            </View>
 
             <AppButton
               label="Repetir la foto"

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  type SharedValue,
   clamp,
   runOnJS,
   useAnimatedStyle,
@@ -24,10 +25,10 @@ import { TrashTarget } from './TrashTarget';
  * relativos (0-1 aprox.) para que una propuesta se vea igual en
  * pantallas de distinto tamaño. En pantalla se multiplican por esto.
  */
-const REFERENCE_SIZE = 300;
+export const REFERENCE_SIZE = 300;
 
 /** Lado del boceto sin escalar. */
-const BASE_SIZE = 160;
+export const BASE_SIZE = 160;
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 2.5;
@@ -86,6 +87,7 @@ export function DesignOverlay({
   guide = false,
   onRemove,
   onLivePlacement,
+  externalTrash,
 }: {
   design?: TattooDesign;
   /**
@@ -106,6 +108,17 @@ export function DesignOverlay({
    * basurero abajo al centro; soltarlo encima lo quita.
    */
   onRemove?: () => void;
+  /**
+   * Basurero dibujado FUERA de este componente (p. ej. fuera del
+   * contenedor con zoom de la foto, para que no crezca con el zoom).
+   * Se le pasan sus valores y como saber, por la posicion del dedo en
+   * la ventana, si esta encima. Sin esto, el basurero va aqui dentro.
+   */
+  externalTrash?: {
+    visible: SharedValue<number>;
+    hot: SharedValue<number>;
+    isOver: (absoluteX: number, absoluteY: number) => boolean;
+  };
 }) {
   const placement = useEditorStore((s) => s.placement);
   const hideBackground = useEditorStore((s) => s.hideBackground);
@@ -129,8 +142,11 @@ export function DesignOverlay({
 
   const isGesturing = useSharedValue(false);
   // Basurero: `trashVisible` lo muestra, `overTrash` es que el boceto ya esta encima.
-  const trashVisible = useSharedValue(0);
-  const overTrash = useSharedValue(0);
+  const ownTrashVisible = useSharedValue(0);
+  const ownOverTrash = useSharedValue(0);
+  const trashVisible = externalTrash?.visible ?? ownTrashVisible;
+  const overTrash = externalTrash?.hot ?? ownOverTrash;
+  const isOverExternal = externalTrash?.isOver;
   const canRemove = Boolean(onRemove);
 
   const remove = () => onRemove?.();
@@ -209,7 +225,9 @@ export function DesignOverlay({
       // Aparece solo al arrastrar HACIA ABAJO: mover el boceto hacia
       // los lados o hacia arriba no tiene por que mostrar un basurero.
       if (e.translationY > TRASH_REVEAL_DRAG && trashVisible.value === 0) trashVisible.value = withTiming(1, { duration: 180 });
-      const over = isOverTrash(translateX.value, translateY.value, frameWidth.value, frameHeight.value);
+      const over = isOverExternal
+        ? isOverExternal(e.absoluteX, e.absoluteY)
+        : isOverTrash(translateX.value, translateY.value, frameWidth.value, frameHeight.value);
       overTrash.value = over ? 1 : 0;
     })
     .onChange(() => emitLive())
@@ -320,7 +338,7 @@ export function DesignOverlay({
           )}
         </Animated.View>
       </GestureDetector>
-      {canRemove && <TrashTarget visible={trashVisible} hot={overTrash} />}
+      {canRemove && !externalTrash && <TrashTarget visible={trashVisible} hot={overTrash} />}
     </View>
   );
 }

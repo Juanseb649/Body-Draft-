@@ -1,37 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
 
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
-import { useZoneScanStore, type Stroke } from '../../controllers/useZoneScanStore';
+import { useZoneScanStore } from '../../controllers/useZoneScanStore';
 import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
-import { clampView, screenToContent, strokeToPath, type Point, type Rect, type ScanView } from '../../models/zoneScan';
-import { flatToneColor, neonLightCore, neonLightHaloColor, useTheme } from '../../theme';
+import { TRASH_CENTER_FROM_BOTTOM, TRASH_RADIUS } from '../../models/trashZone';
+import { clampView, screenToContent, type Rect, type ScanView } from '../../models/zoneScan';
 import { duration, easing } from '../../theme/motion';
-import { DesignOverlay } from '../molecules/DesignOverlay';
+import { BASE_SIZE, DesignOverlay, REFERENCE_SIZE } from '../molecules/DesignOverlay';
+import { TrashTarget } from '../molecules/TrashTarget';
 import { SkinWrapView } from './SkinWrapView';
 
-/** Grosor del perfil en pantalla, igual con o sin zoom. */
-const LINE_WIDTH = 3;
+/** Margen alrededor del diseno que todavia cuenta como "tocar el diseno". */
+const DESIGN_HIT_MARGIN = 1.15;
 
 /**
- * La foto de la zona ya tomada, para trabajar sobre ella:
+ * La foto de la zona ya tomada, para ajustar el tatuaje sobre ella SIN
+ * modos ni botones: lo que hagan los dedos depende de donde empiezan.
  *
- * - "Ampliar": pellizcar acerca (hacia donde estan los dedos) y
- *   arrastrar recorre; doble toque alterna entre la foto entera y x2,5.
- * - "Perfilar": un dedo dibuja el perfil del tatuaje en neon; dos
- *   dedos siguen acercando, para perfilar el detalle de cerca.
- * - "Boceto": los dedos vuelven a mover el boceto (DesignOverlay).
+ * - Sobre el diseno: un dedo lo mueve, dos lo giran y cambian su tamaño,
+ *   y arrastrarlo abajo al centro lo lleva al basurero (DesignOverlay).
+ * - Fuera del diseno: pellizcar acerca o aleja la foto (hacia los
+ *   dedos) y arrastrar la recorre.
  *
- * La foto, el boceto y los trazos estan dentro del MISMO contenedor
- * con zoom: al acercar crecen juntos y nada se despega de la piel.
- * Como en DesignOverlay, los gestos corren en el hilo de UI y solo
- * tocan el store al soltar (salvo el trazo, que se ve mientras se
- * dibuja).
+ * Mientras tanto el tatuaje se ve ya aplicado en la piel y curvado
+ * (SkinWrapView), siguiendo al dedo en vivo. La foto y el tatuaje estan
+ * en el mismo contenedor con zoom, asi que nada se despega al acercar;
+ * el basurero va FUERA de ese contenedor, para que no crezca con el zoom.
  */
 export function ZoneScanStage({
   uri,
@@ -42,10 +41,11 @@ export function ZoneScanStage({
   exportRequest,
   onExported,
   onError,
+  onRemoveDesign,
 }: {
   uri: string;
   design?: TattooDesign;
-  /** Sobre el resultado de la IA el boceto ya va dentro de la imagen. */
+  /** Sobre un resultado ya compuesto el diseno va dentro de la imagen. */
   showDesign: boolean;
   /** `cover` para la foto (asi se ve como en la camara en vivo). */
   fit: 'cover' | 'contain';
@@ -54,31 +54,46 @@ export function ZoneScanStage({
   exportRequest?: number;
   onExported?: (dataUri: string) => void;
   onError?: (message: string) => void;
+  /** Soltar el diseno en el basurero. */
+  onRemoveDesign?: () => void;
 }) {
-  const { scheme } = useTheme();
   const reduceMotion = useSettingsStore((s) => s.appearance.reduceMotion);
-  const { tool, view, strokes, current, skin, onSkin, setView, beginStroke, extendStroke, endStroke } =
-    useZoneScanStore();
+  const { view, skin, onSkin, setView } = useZoneScanStore();
   const placement = useEditorStore((s) => s.placement);
   const hideBackground = useEditorStore((s) => s.hideBackground);
   const wrapOnSkin = showDesign && onSkin && Boolean(design);
   const [live, setLive] = useState<Placement | null>(null);
+  const shown = live ?? placement;
 
   const stageW = useSharedValue(0);
   const stageH = useSharedValue(0);
+  // Donde esta el escenario en la ventana: el basurero se compara con
+  // la posicion ABSOLUTA del dedo.
+  const stageX = useSharedValue(0);
+  const stageY = useSharedValue(0);
   const scale = useSharedValue(view.scale);
   const tx = useSharedValue(view.x);
   const ty = useSharedValue(view.y);
   const start = useSharedValue<ScanView>(view);
   const isGesturing = useSharedValue(false);
 
-  const zoomEnabled = tool !== 'boceto';
+  // Donde esta el diseno (en coordenadas de la foto sin zoom) y que tan
+  // grande es: para decidir si un toque empieza sobre el o sobre la foto.
+  const designX = useSharedValue(0);
+  const designY = useSharedValue(0);
+  const designR = useSharedValue(0);
+  const hasDesign = showDesign && Boolean(design);
+
+  const trashVisible = useSharedValue(0);
+  const trashHot = useSharedValue(0);
+  const isOverTrash = (absX: number, absY: number) => {
+    'worklet';
+    const cx = stageX.value + stageW.value / 2;
+    const cy = stageY.value + stageH.value - TRASH_CENTER_FROM_BOTTOM;
+    return Math.hypot(absX - cx, absY - cy) <= TRASH_RADIUS;
+  };
 
   const commit = (next: ScanView) => setView(next);
-  const toContent = (p: Point) => {
-    'worklet';
-    return screenToContent(p, { scale: scale.value, x: tx.value, y: ty.value }, { width: stageW.value, height: stageH.value });
-  };
   const apply = (next: ScanView) => {
     'worklet';
     const v = clampView(next, { width: stageW.value, height: stageH.value });
@@ -92,14 +107,32 @@ export function ZoneScanStage({
     runOnJS(commit)({ scale: scale.value, x: tx.value, y: ty.value });
   };
 
-  // Acercar hacia los dedos: el punto de la foto bajo el foco del
-  // pellizco sigue bajo el foco mientras cambia la escala.
+  /** Si un punto de la pantalla cae sobre el diseno. */
+  const onDesign = (x: number, y: number) => {
+    'worklet';
+    if (!hasDesign) return false;
+    const p = screenToContent({ x, y }, { scale: scale.value, x: tx.value, y: ty.value }, { width: stageW.value, height: stageH.value });
+    return Math.hypot(p.x - (stageW.value / 2 + designX.value), p.y - (stageH.value / 2 + designY.value)) <= designR.value;
+  };
+
+  // Los gestos de la foto se activan a mano: si el primer dedo cae sobre
+  // el diseno, fallan y el toque es del diseno (DesignOverlay).
   const pinch = Gesture.Pinch()
-    .enabled(zoomEnabled)
+    .manualActivation(true)
+    .onTouchesDown((e, manager) => {
+      if (e.numberOfTouches < 2) return;
+      const [a, b] = e.allTouches;
+      if (onDesign(a.x, a.y) || onDesign(b.x, b.y)) manager.fail();
+    })
+    .onTouchesMove((e, manager) => {
+      if (e.numberOfTouches >= 2) manager.activate();
+    })
     .onStart(() => {
       isGesturing.value = true;
       start.value = { scale: scale.value, x: tx.value, y: ty.value };
     })
+    // Acercar hacia los dedos: el punto de la foto bajo el foco del
+    // pellizco sigue bajo el foco mientras cambia la escala.
     .onUpdate((e) => {
       const cx = stageW.value / 2;
       const cy = stageH.value / 2;
@@ -111,11 +144,15 @@ export function ZoneScanStage({
     })
     .onEnd(save);
 
-  // Recorrer con zoom. En "perfilar" el arrastre de un dedo es dibujar,
-  // asi que ahi recorrer pide dos dedos.
   const pan = Gesture.Pan()
-    .enabled(zoomEnabled)
-    .minPointers(tool === 'perfilar' ? 2 : 1)
+    .manualActivation(true)
+    .onTouchesDown((e, manager) => {
+      const t = e.allTouches[0];
+      if (t && onDesign(t.x, t.y)) manager.fail();
+    })
+    .onTouchesMove((_e, manager) => {
+      manager.activate();
+    })
     .onStart(() => {
       isGesturing.value = true;
       start.value = { scale: scale.value, x: tx.value, y: ty.value };
@@ -125,43 +162,11 @@ export function ZoneScanStage({
     })
     .onEnd(save);
 
-  const draw = Gesture.Pan()
-    .enabled(tool === 'perfilar')
-    .maxPointers(1)
-    .minDistance(0)
-    .onBegin((e) => {
-      runOnJS(beginStroke)(toContent({ x: e.x, y: e.y }));
-    })
-    .onUpdate((e) => {
-      runOnJS(extendStroke)(toContent({ x: e.x, y: e.y }));
-    })
-    .onFinalize(() => {
-      runOnJS(endStroke)();
-    });
-
-  const doubleTap = Gesture.Tap()
-    .enabled(tool === 'ampliar')
-    .numberOfTaps(2)
-    .onEnd((e) => {
-      const cx = stageW.value / 2;
-      const cy = stageH.value / 2;
-      const target =
-        scale.value > 1.05
-          ? { scale: 1, x: 0, y: 0 }
-          : { scale: 2.5, x: -2.5 * (e.x - cx) + (e.x - cx), y: -2.5 * (e.y - cy) + (e.y - cy) };
-      const v = clampView(target, { width: stageW.value, height: stageH.value });
-      scale.value = withTiming(v.scale, { duration: duration.slow });
-      tx.value = withTiming(v.x, { duration: duration.slow });
-      ty.value = withTiming(v.y, { duration: duration.slow });
-      runOnJS(commit)(v);
-    });
-
-  const gesture = Gesture.Simultaneous(pinch, Gesture.Exclusive(doubleTap, pan), draw);
+  const gesture = Gesture.Simultaneous(pinch, pan);
 
   // El store manda cuando cambia desde fuera (al tomar la foto se
-  // enfoca la zona; "Ver entera" vuelve a x1). Se anima: ese
-  // acercamiento ES el escaneo que ve el usuario. Va despues de los
-  // gestos por la regla de inmutabilidad de Reanimated.
+  // enfoca la zona; "Ver la foto entera" vuelve a x1). Se anima: ese
+  // acercamiento ES el escaneo que ve el usuario.
   useEffect(() => {
     if (isGesturing.value) return;
     const config = { duration: reduceMotion ? 0 : duration.slow * 2, easing: easing.standard };
@@ -170,66 +175,63 @@ export function ZoneScanStage({
     ty.value = withTiming(view.y, config);
   }, [view, reduceMotion, isGesturing, scale, tx, ty]);
 
+  // Posicion y tamaño del diseno para el reparto de toques.
+  useEffect(() => {
+    // Desplazamiento desde el centro del escenario; el centro se suma al tocar.
+    designX.value = shown.offsetX * REFERENCE_SIZE;
+    designY.value = shown.offsetY * REFERENCE_SIZE;
+    designR.value = (BASE_SIZE / 2) * shown.scale * DESIGN_HIT_MARGIN;
+  }, [shown, designX, designY, designR]);
+
   const zoomStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
   }));
 
+  const stageRef = useRef<View>(null);
   const onLayout = (e: LayoutChangeEvent) => {
-    stageW.value = e.nativeEvent.layout.width;
-    stageH.value = e.nativeEvent.layout.height;
-  };
-
-  const strokeWidth = LINE_WIDTH / view.scale;
-  const renderStroke = (stroke: Stroke, key: string) => {
-    const d = strokeToPath(stroke.points);
-    const core = scheme === 'light' ? neonLightCore(stroke.tone) : flatToneColor('dark', stroke.tone);
-    const halo = scheme === 'light' ? neonLightHaloColor(stroke.tone, 0.45) : undefined;
-    return <SvgStroke key={key} d={d} core={core} halo={halo} width={strokeWidth} />;
+    stageW.set(e.nativeEvent.layout.width);
+    stageH.set(e.nativeEvent.layout.height);
+    stageRef.current?.measureInWindow((x, y) => {
+      stageX.set(x);
+      stageY.set(y);
+    });
   };
 
   return (
-    <GestureDetector gesture={gesture}>
-      <View style={styles.fill} onLayout={onLayout} collapsable={false}>
-        <Animated.View style={[styles.fill, zoomStyle]}>
-          <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode={fit} />
-          {wrapOnSkin && design && (
-            <SkinWrapView
-              photoUri={uri}
-              designUri={displayImageUrl(design)}
-              placement={live ?? placement}
-              cutout={hideBackground}
-              frame={frame}
-              settings={skin}
-              exportRequest={exportRequest}
-              onExported={onExported}
-              onError={onError}
-            />
-          )}
-          {showDesign && (
-            <View style={StyleSheet.absoluteFill} pointerEvents={tool === 'boceto' ? 'box-none' : 'none'}>
-              <DesignOverlay design={design} guide={wrapOnSkin} onLivePlacement={wrapOnSkin ? setLive : undefined} />
-            </View>
-          )}
-          <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-            {strokes.map((s, i) => renderStroke(s, `s${i}`))}
-            {current && renderStroke(current, 'current')}
-          </Svg>
-        </Animated.View>
-      </View>
-    </GestureDetector>
-  );
-}
-
-/**
- * Un trazo de neon. En claro: halo ancho y translucido + nucleo (el
- * "tubo" de la guia). En oscuro, plano como pide la guia.
- */
-function SvgStroke({ d, core, halo, width }: { d: string; core: string; halo?: string; width: number }) {
-  return (
-    <>
-      {halo && <Path d={d} stroke={halo} strokeWidth={width * 3.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />}
-      <Path d={d} stroke={core} strokeWidth={width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </>
+    <View style={styles.fill}>
+      <GestureDetector gesture={gesture}>
+        <View ref={stageRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
+          <Animated.View style={[styles.fill, zoomStyle]}>
+            <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode={fit} />
+            {wrapOnSkin && design && (
+              <SkinWrapView
+                photoUri={uri}
+                designUri={displayImageUrl(design)}
+                placement={shown}
+                cutout={hideBackground}
+                frame={frame}
+                settings={skin}
+                exportRequest={exportRequest}
+                onExported={onExported}
+                onError={onError}
+              />
+            )}
+            {showDesign && (
+              <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                <DesignOverlay
+                  design={design}
+                  guide={wrapOnSkin}
+                  onLivePlacement={wrapOnSkin ? setLive : undefined}
+                  onRemove={onRemoveDesign}
+                  externalTrash={onRemoveDesign ? { visible: trashVisible, hot: trashHot, isOver: isOverTrash } : undefined}
+                />
+              </View>
+            )}
+          </Animated.View>
+        </View>
+      </GestureDetector>
+      {onRemoveDesign && <TrashTarget visible={trashVisible} hot={trashHot} />}
+    </View>
   );
 }
 
