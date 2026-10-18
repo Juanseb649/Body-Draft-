@@ -26,6 +26,7 @@ siembra cuentas cuyo rol lo escribe el trigger que define
 | `20261002130000_seed_demo_artists.sql` | Dos tatuadores de demostración con portafolio (**solo desarrollo**) |
 | `20261002140000_portfolio_storage.sql` | Bucket `portfolio` de Storage: lectura pública, escritura solo en la carpeta propia |
 | `20261018120000_design_likes_comments.sql` | `design_likes` y `design_comments` (me gusta y comentarios públicos bajo un diseño) y `appointments.design_id` (la cita recuerda de qué diseño salió) |
+| `20261018200000_profile_names_and_avatars.sql` | El comentario firma con el nombre real (perfil → registro → correo, nunca "Alguien") y se actualiza si cambia; `profiles.avatar_url` y bucket `avatars` (lectura pública, escritura solo en la carpeta propia) |
 
 ## Comprobar que quedó bien
 
