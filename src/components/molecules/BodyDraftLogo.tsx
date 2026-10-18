@@ -12,6 +12,9 @@ import { fonts } from '../../theme';
  */
 const STACKED_WIDTH_RATIO = 3.8;
 
+/** Margen lateral del texto, en multiplos de `size` (ver `text` abajo). */
+const TEXT_PAD_X = 0.32;
+
 /** Separacion minima del logo con los bordes de la pantalla. */
 const EDGE = 16;
 
@@ -33,13 +36,25 @@ export function BodyDraftLogo({
   const s = size / 112;
   // lineHeight 1.3x: la fuente cursiva Sacramento tiene bucles altos que un
   // line-height cercano al fontSize recorta (se veia como un logo mal cortado).
-  const text = { fontFamily: fonts.logo, fontSize: size, lineHeight: size * 1.3, paddingHorizontal: size * 0.12 };
+  //
+  // Margen interior generoso a los cuatro lados: Android e iOS RECORTAN
+  // lo que un glifo dibuja fuera de la caja del <Text>, y la cursiva de
+  // Sacramento se sale mucho (el bucle de entrada de la "B", la barra de
+  // la "t" de "Draft", la cola de la "y"). Con 0,12 de margen esas
+  // partes salian cortadas en el telefono aunque en web se vieran bien.
+  const text = {
+    fontFamily: fonts.logo,
+    fontSize: size,
+    lineHeight: size * 1.3,
+    paddingHorizontal: size * TEXT_PAD_X,
+    paddingVertical: size * 0.12,
+  };
 
   if (variant === 'inline') {
     return (
       <View style={[styles.inline, style]} accessible accessibilityRole="header" accessibilityLabel="Body Draft">
         <NeonText tone="fuchsia" style={text}>Body</NeonText>
-        <NeonText tone="blue" style={text} containerStyle={{ marginLeft: -size * 0.2 }}>Draft</NeonText>
+        <NeonText tone="blue" style={text} containerStyle={{ marginLeft: -size * (0.2 + (TEXT_PAD_X - 0.12) * 2) }}>Draft</NeonText>
       </View>
     );
   }
@@ -55,12 +70,12 @@ export function BodyDraftLogo({
 
   return (
     <View style={[styles.stacked, style]} accessible accessibilityRole="header" accessibilityLabel="Body Draft">
-      <View style={{ height: wordBoxHeight, justifyContent: 'center', marginRight: 90 * s }}>
+      <View style={{ height: wordBoxHeight, justifyContent: 'center', marginRight: 90 * s, overflow: 'visible' }}>
         <NeonText tone="fuchsia" style={text}>
           Body
         </NeonText>
       </View>
-      <View style={{ height: wordBoxHeight, justifyContent: 'center', marginLeft: 110 * s, marginTop: -26 * s }}>
+      <View style={{ height: wordBoxHeight, justifyContent: 'center', marginLeft: 110 * s, marginTop: -26 * s, overflow: 'visible' }}>
         <NeonText tone="blue" style={text}>
           Draft
         </NeonText>
