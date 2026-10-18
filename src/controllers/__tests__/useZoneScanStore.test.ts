@@ -87,10 +87,10 @@ describe('useZoneScanStore — ampliar', () => {
 describe('useZoneScanStore — en la piel', () => {
   it('cambiar de zona vuelve a su curvatura, pero conserva la tinta elegida', () => {
     const s = useZoneScanStore.getState();
-    s.setSkin({ ink: 'color', curvature: 0.1 });
+    s.setSkin({ ink: 'bn', curvature: 0.1 });
     s.resetSkinFor('forearm');
     const { skin } = useZoneScanStore.getState();
-    expect(skin.ink).toBe('color');
+    expect(skin.ink).toBe('bn');
     expect(skin.curvature).toBeGreaterThan(0.8);
   });
 

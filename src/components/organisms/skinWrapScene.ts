@@ -10,11 +10,8 @@
  *
  * 1. Foto en "cover", igual que el preview de la camara, para que las
  *    coordenadas de la app (boceto, recuadro) caigan en el mismo pixel.
- * 2. Prepara el boceto segun la tinta elegida:
- *    - "tinta": tinta negra; el papel se vuelve transparente.
- *    - "color": conserva el color, algo apagado y teñido por la piel,
- *      que es como se ve una tinta de color bajo la epidermis.
- *    - "original": tal cual (respetando el recorte del papel).
+ * 2. Prepara el boceto: le quita el fondo (el papel) y lo deja a color
+ *    o en blanco y negro (ver inkKeySource.ts).
  * 3. Lo coloca donde lo dejo el usuario (posicion, giro, tamaño), en un
  *    marco girado segun la inclinacion de la zona.
  * 4. Lo ENVUELVE sobre un cilindro: el recuadro de la zona es el
@@ -27,6 +24,8 @@
  *    sin taparla, asi que las luces, las sombras y la textura de la
  *    piel siguen viendose a traves del tatuaje.
  */
+
+import { INK_KEY_SOURCE } from './inkKeySource';
 
 export function skinWrapHtml({
   photoUrl,
@@ -55,8 +54,7 @@ export function skinWrapHtml({
       /** Mismas constantes que DesignOverlay (React Native). */
       const REFERENCE_SIZE = 300;
       const BASE_SIZE = 160;
-      /** Negro de tatuaje: no es negro puro, tira a azul bajo la piel. */
-      const INK = [26, 28, 38];
+      ${INK_KEY_SOURCE}
 
       const out = document.getElementById('out');
       const ctx = out.getContext('2d');
@@ -115,7 +113,7 @@ export function skinWrapHtml({
 
       /** El boceto convertido segun la tinta (se cachea por combinacion). */
       function processDesign(ink, cutout) {
-        const key = ink + '|' + cutout + '|' + skin.map(Math.round).join(',');
+        const key = ink + '|' + cutout;
         if (processed && processedKey === key) return processed;
         const c = document.createElement('canvas');
         // Suficiente resolucion para el tamaño maximo en pantalla, sin
@@ -127,25 +125,8 @@ export function skinWrapHtml({
         cx.drawImage(design, 0, 0, c.width, c.height);
         const data = cx.getImageData(0, 0, c.width, c.height);
         const p = data.data;
-        for (let i = 0; i < p.length; i += 4) {
-          const lum = (p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114) / 255;
-          const paperAlpha = Math.round((1 - lum) * 255);
-          if (ink === 'tinta') {
-            // El papel nunca es tinta, haya recorte o no.
-            p[i + 3] = Math.min(p[i + 3], paperAlpha);
-            p[i] = INK[0]; p[i + 1] = INK[1]; p[i + 2] = INK[2];
-          } else {
-            if (cutout) p[i + 3] = Math.min(p[i + 3], paperAlpha);
-            if (ink === 'color') {
-              // Apagado un 25 % y teñido un 15 % por la piel.
-              const gray = lum * 255;
-              for (let k = 0; k < 3; k++) {
-                const desat = p[i + k] * 0.75 + gray * 0.25;
-                p[i + k] = desat * 0.85 + skin[k] * 0.15;
-              }
-            }
-          }
-        }
+        // Fondo fuera y color segun el modo (ver inkKeySource.ts).
+        keyInk(p, c.width, c.height, { mode: ink, removeBg: cutout });
         cx.putImageData(data, 0, 0);
         processed = c;
         processedKey = key;

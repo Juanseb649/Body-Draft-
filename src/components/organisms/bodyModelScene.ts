@@ -13,6 +13,8 @@
  * ninguna libreria nativa nueva ni salir de Expo Go.
  */
 
+import { INK_KEY_SOURCE } from './inkKeySource';
+
 const THREE_VERSION = '0.180.0';
 const CDN = `https://unpkg.com/three@${THREE_VERSION}`;
 
@@ -160,25 +162,24 @@ export function bodyModelHtml({
       let body = null;
       let decal = null;
       let texture = null;
-      let current = { zone: ${JSON.stringify(zone)}, manual: null, size: 1, rotation: 0, opacity: 1, cutout: true };
+      let current = { zone: ${JSON.stringify(zone)}, manual: null, size: 1, rotation: 0, opacity: 1, cutout: true, ink: 'color' };
+
+      ${INK_KEY_SOURCE}
 
       /**
-       * Deja transparente el papel del boceto, con la misma regla que
-       * el filtro SVG del lado de React Native: alfa = 1 - luminancia.
-       * Sin esto el decal seria un recuadro blanco sobre la piel.
+       * El boceto listo para la piel: sin el papel (si \`cutout\`) y a color
+       * o en blanco y negro, con la MISMA rutina que la camara (ver
+       * inkKeySource.ts). Antes aqui se usaba "alfa = 1 - luminancia",
+       * que borraba los colores claros.
        */
-      function toCutout(image) {
+      function prepareImage(image) {
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
         canvas.height = image.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(image, 0, 0);
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const p = data.data;
-        for (let i = 0; i < p.length; i += 4) {
-          const luminance = (p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114) / 255;
-          p[i + 3] = Math.min(p[i + 3], Math.round((1 - luminance) * 255));
-        }
+        keyInk(data.data, canvas.width, canvas.height, { mode: current.ink, removeBg: current.cutout });
         ctx.putImageData(data, 0, 0);
         return canvas;
       }
@@ -186,7 +187,7 @@ export function bodyModelHtml({
       let rawImage = null;
       function buildTexture() {
         if (!rawImage) return null;
-        const source = current.cutout ? toCutout(rawImage) : rawImage;
+        const source = prepareImage(rawImage);
         const t = new THREE.Texture(source);
         t.colorSpace = THREE.SRGBColorSpace;
         t.needsUpdate = true;
@@ -391,6 +392,12 @@ export function bodyModelHtml({
         setCutout(value) {
           if (value === current.cutout) return;
           current.cutout = value;
+          texture = buildTexture();
+          placeDecal();
+        },
+        setInk(mode) {
+          if (mode === current.ink) return;
+          current.ink = mode;
           texture = buildTexture();
           placeDecal();
         },

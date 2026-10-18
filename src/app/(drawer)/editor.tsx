@@ -49,9 +49,8 @@ const SILHOUETTE_LABEL: Record<BodySilhouette, string> = {
 };
 
 const INK_OPTIONS: { value: InkMode; label: string }[] = [
-  { value: 'tinta', label: 'Tinta negra' },
   { value: 'color', label: 'Color' },
-  { value: 'original', label: 'Original' },
+  { value: 'bn', label: 'Blanco y negro' },
 ];
 
 const SCAN_TOOLS: { value: ScanTool; label: string }[] = [
@@ -317,6 +316,7 @@ export default function TattooEditorScreen() {
           rotationDegrees={proposal.placement.rotationDegrees}
           opacity={proposal.placement.opacity}
           cutout={proposal.hideBackground}
+          ink={scan.skin.ink}
           onSizeChange={(scale) => proposal.setPlacement({ scale })}
           onRemove={removeDesign}
         />
@@ -448,7 +448,6 @@ export default function TattooEditorScreen() {
                   el diseño se envuelve en su curva y toma la luz de tu piel. Encuádralo para que el recuadro
                   abrace el miembro.
                 </Text>
-                <Segmented value={scan.skin.ink} onChange={(ink) => scan.setSkin({ ink })} options={INK_OPTIONS} />
 
                 <View style={styles.sliderLabel}>
                   <Text style={[typo.bodyStrong, { color: colors.text }]}>Curvatura</Text>
@@ -589,7 +588,7 @@ export default function TattooEditorScreen() {
           <>
             <Text style={styles.hint}>
               {mode === 'mannequin'
-                ? 'Un dedo gira el maniquí, dos lo recorren de arriba a abajo. Toca dónde quieres el tatuaje y pellizca para su tamaño.'
+                ? 'Arrastra el tatuaje por la piel; un dedo fuera de él gira el maniquí y dos lo recorren. Pellizca el tatuaje para su tamaño, o llévalo abajo al basurero para quitarlo.'
                 : 'Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.'}
             </Text>
 
@@ -603,9 +602,13 @@ export default function TattooEditorScreen() {
               ]}
             />
             <Text style={styles.hint}>
-              &quot;Sin fondo&quot; vuelve transparente el papel del boceto al instante, aquí en el teléfono. Si está
-              sobre un fondo complicado y no basta, el recorte con IA entiende la escena.
+              &quot;Sin fondo&quot; quita el papel y deja solo el trazo, aquí en el teléfono, sin perder los colores. Si
+              está sobre un fondo complicado y no basta, el recorte con IA entiende la escena.
             </Text>
+
+            {/* Un solo selector para camara, foto y maniqui. */}
+            <Text style={styles.label}>Color del diseño</Text>
+            <Segmented value={scan.skin.ink} onChange={(ink) => scan.setSkin({ ink })} options={INK_OPTIONS} />
 
             <AppButton
               label={hasCutout ? 'Deshacer recorte con IA' : 'Recortar con IA'}

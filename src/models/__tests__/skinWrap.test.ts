@@ -52,8 +52,8 @@ describe('defaultSkinWrap', () => {
     expect(defaultSkinWrap('forearm').curvature).toBeGreaterThan(defaultSkinWrap('back').curvature + 0.5);
   });
 
-  it('parte con tinta negra, eje vertical y el ancho del recuadro', () => {
-    expect(defaultSkinWrap()).toMatchObject({ ink: 'tinta', axisDegrees: 0, widthScale: 1 });
+  it('parte a color, con eje vertical y el ancho del recuadro', () => {
+    expect(defaultSkinWrap()).toMatchObject({ ink: 'color', axisDegrees: 0, widthScale: 1 });
   });
 });
 

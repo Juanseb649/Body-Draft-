@@ -7,7 +7,8 @@ import type { BodyZone } from './bodyZone';
  * matematica, para poder probarlos.
  */
 
-export type InkMode = 'tinta' | 'color' | 'original';
+/** Como se ve el diseno: con sus colores, o en blanco y negro (tinta negra y grises). */
+export type InkMode = 'color' | 'bn';
 
 export interface SkinWrapSettings {
   /** 0 = plano, 1 = envuelto del todo sobre un cilindro. */
@@ -51,7 +52,8 @@ export function defaultSkinWrap(zone?: BodyZone): SkinWrapSettings {
     // del torso, que tambien es alrededor de un eje vertical. Si el
     // brazo salio inclinado en la foto, se corrige con "Inclinación".
     axisDegrees: 0,
-    ink: 'tinta',
+    // A color por defecto: un diseno a color tiene que verse a color.
+    ink: 'color',
   };
 }
 
