@@ -31,6 +31,9 @@ export interface BodyModelViewerProps {
   onError?: (message: string) => void;
   /** El tatuaje se solto sobre el basurero (arrastrandolo hacia abajo). */
   onRemove?: () => void;
+  /** Cada vez que sube, se pide una imagen de lo que se ve (onSnapshot). */
+  snapshotRequest?: number;
+  onSnapshot?: (dataUri: string) => void;
 }
 
 /**
@@ -63,6 +66,8 @@ export function BodyModelViewer({
   onSizeChange,
   onError,
   onRemove,
+  snapshotRequest = 0,
+  onSnapshot,
 }: BodyModelViewerProps) {
   const webRef = useRef<WebView>(null);
 
@@ -92,6 +97,9 @@ export function BodyModelViewer({
   useEffect(() => send(`window.bodyModel.setOpacity(${opacity})`), [opacity]);
   useEffect(() => send(`window.bodyModel.setCutout(${cutout})`), [cutout]);
   useEffect(() => send(`window.bodyModel.setInk(${JSON.stringify(ink)})`), [ink]);
+  useEffect(() => {
+    if (snapshotRequest > 0) send('window.bodyModel.snapshot()');
+  }, [snapshotRequest]);
 
   return (
     <WebView
@@ -124,6 +132,9 @@ export function BodyModelViewer({
           // el deslizador de la hoja seguiria marcando el valor viejo.
           if (message.type === 'size' && typeof message.value === 'number') onSizeChange?.(message.value);
           if (message.type === 'remove') onRemove?.();
+          if (message.type === 'snapshot' && (message as { dataUri?: string }).dataUri) {
+            onSnapshot?.((message as { dataUri?: string }).dataUri as string);
+          }
         } catch {
           // Mensaje que no es nuestro; se ignora.
         }

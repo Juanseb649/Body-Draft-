@@ -207,9 +207,14 @@ export default function TattooEditorScreen() {
 
   const onSkinExported = (dataUri: string) => {
     try {
-      proposal.applySkinComposite(saveDataUriToDocuments(dataUri, 'en-la-piel', 'propuesta'));
+      const file = saveDataUriToDocuments(dataUri, 'en-la-piel', 'propuesta');
+      proposal.applySkinComposite(file);
+      // Si se pidio "Guardar propuesta" sin haber aplicado antes, se
+      // aplica y se guarda con esta imagen.
+      if (saving) void finishSave(file);
     } catch (e) {
       setSkinError(e instanceof Error ? e.message : String(e));
+      setSaving(false);
     } finally {
       setIsApplying(false);
     }
@@ -220,9 +225,43 @@ export default function TattooEditorScreen() {
     setSkinError(message);
   };
 
+  // "Guardar propuesta" guarda tambien la imagen que la representa en
+  // "Propuestas guardadas": la foto con el tatuaje aplicado, o una
+  // captura del maniqui. Las dos se piden a su WebView y llegan despues.
+  const [saving, setSaving] = useState(false);
+  const [snapshotRequest, setSnapshotRequest] = useState(0);
+
+  const finishSave = async (previewImageUrl?: string) => {
+    try {
+      await proposal.save(ownerId, previewImageUrl);
+      router.push('/propuestas');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onMannequinSnapshot = (dataUri: string) => {
+    if (!saving) return;
+    try {
+      void finishSave(saveDataUriToDocuments(dataUri, 'propuestas', 'maniqui'));
+    } catch {
+      void finishSave(undefined);
+    }
+  };
+
   const handleSave = async () => {
-    await proposal.save();
-    router.push('/artists');
+    if (!design || saving) return;
+    setSaving(true);
+    if (mode === 'mannequin' && model.uri) {
+      setSnapshotRequest((n) => n + 1);
+      return;
+    }
+    if (mode === 'camera' && proposal.cameraSnapshotUrl && !proposal.renderedImageUrl && scan.onSkin) {
+      applyToPhoto();
+      return;
+    }
+    // Foto ya aplicada, o camara en vivo sin foto (entonces, el boceto).
+    await finishSave(proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl ?? displayImageUrl(design));
   };
 
   const renderStage = () => {
@@ -301,6 +340,8 @@ export default function TattooEditorScreen() {
           ink={scan.skin.ink}
           onSizeChange={(scale) => proposal.setPlacement({ scale })}
           onRemove={removeDesign}
+          snapshotRequest={snapshotRequest}
+          onSnapshot={onMannequinSnapshot}
         />
       );
     }
@@ -611,7 +652,7 @@ export default function TattooEditorScreen() {
         />
 
         <View style={{ height: 8 }} />
-        <AppButton label="Guardar propuesta" onPress={handleSave} disabled={!design} />
+        <AppButton label="Guardar propuesta" onPress={handleSave} disabled={!design} isLoading={saving} />
       </ScrollView>
 
       <CreateIntroModal visible={introOpen} onClose={closeIntro} />

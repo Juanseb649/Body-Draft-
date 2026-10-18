@@ -54,7 +54,15 @@ interface EditorState extends TattooProposal {
   renderWithAI: (designUri: string, bodyZoneLabel: string) => Promise<boolean>;
   isRendering: boolean;
   renderError?: string;
-  save: () => Promise<void>;
+  /**
+   * Guarda la propuesta a nombre de `userId` (la cuenta con sesion), con
+   * la imagen que la representa. Despues el editor sigue con lo mismo en
+   * pantalla pero como propuesta NUEVA: guardar otra vez no pisa la
+   * anterior.
+   */
+  save: (userId: string, previewImageUrl?: string) => Promise<TattooProposal>;
+  /** Abre una propuesta guardada en el editor (p. ej. para agendar con ella). */
+  loadProposal: (proposal: TattooProposal) => void;
 }
 
 function initialProposal(): TattooProposal {
@@ -145,11 +153,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  save: async () => {
-    const saved: TattooProposal = { ...toProposal(get()), status: 'saved' };
+  save: async (userId, previewImageUrl) => {
+    const saved: TattooProposal = { ...toProposal(get()), userId, previewImageUrl, status: 'saved' };
     await designRepository.saveProposal(saved);
-    set(saved);
+    set({ id: Crypto.randomUUID(), userId, status: 'draft', createdAt: new Date().toISOString(), previewImageUrl: undefined });
+    return saved;
   },
+
+  loadProposal: (proposal) => set({ ...proposal, renderError: undefined, isRendering: false }),
 }));
 
 function toProposal(state: EditorState): TattooProposal {
@@ -165,6 +176,7 @@ function toProposal(state: EditorState): TattooProposal {
     placement,
     cameraSnapshotUrl,
     renderedImageUrl,
+    previewImageUrl,
     status,
     createdAt,
   } = state;
@@ -177,6 +189,7 @@ function toProposal(state: EditorState): TattooProposal {
     placement,
     cameraSnapshotUrl,
     renderedImageUrl,
+    previewImageUrl,
     status,
     createdAt,
   };

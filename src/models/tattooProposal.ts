@@ -41,6 +41,12 @@ export interface TattooProposal {
    * gastar otra llamada a la API).
    */
   renderedImageUrl?: string;
+  /**
+   * La imagen que representa la propuesta en "Propuestas guardadas":
+   * la foto con el tatuaje aplicado, o una captura del maniqui con el
+   * tatuaje encima. Se toma al guardar y vive en documentos del telefono.
+   */
+  previewImageUrl?: string;
   status: ProposalStatus;
   createdAt: string;
 }

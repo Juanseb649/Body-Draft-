@@ -401,6 +401,19 @@ export function bodyModelHtml({
           texture = buildTexture();
           placeDecal();
         },
+        /**
+         * Imagen de lo que se ve ahora (maniqui con el tatuaje), para la
+         * lista de propuestas guardadas. Se dibuja y se lee en el mismo
+         * paso: sin preserveDrawingBuffer el lienzo se vacia despues.
+         */
+        snapshot() {
+          try {
+            renderer.render(scene, camera);
+            post({ type: 'snapshot', dataUri: renderer.domElement.toDataURL('image/jpeg', 0.85) });
+          } catch (e) {
+            post({ type: 'error', message: String(e && e.message ? e.message : e) });
+          }
+        },
       };
 
       // --- barra de recorrido ----------------------------------------
