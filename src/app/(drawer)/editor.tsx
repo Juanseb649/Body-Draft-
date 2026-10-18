@@ -15,8 +15,9 @@ import { Segmented } from '../../components/atoms/Segmented';
 import { Spinner } from '../../components/atoms/Spinner';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
 import { CameraOverlay } from '../../components/organisms/CameraOverlay';
-import { BodyZonePicker } from '../../components/molecules/BodyZonePicker';
+import { BodyZonePicker, type ZoneHint } from '../../components/molecules/BodyZonePicker';
 import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
+import { PoseDetector, type PoseResult } from '../../components/organisms/PoseDetector';
 import { ZoneScanStage } from '../../components/organisms/ZoneScanStage';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useBodyModel } from '../../controllers/useBodyModel';
@@ -30,6 +31,7 @@ import { BODY_SILHOUETTES, bodyZoneLabel, type BodySilhouette } from '../../mode
 import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
 import { AXIS_RANGE, CURVATURE_RANGE, WIDTH_SCALE_RANGE, type InkMode } from '../../models/skinWrap';
+import { stagePointToImage, suggestZoneFromPose } from '../../models/poseZone';
 import { scanFrameFor, type Size } from '../../models/zoneScan';
 import { saveDataUriToDocuments } from '../../services/imageFileCache';
 import { type as typo, useTheme } from '../../theme';
@@ -104,6 +106,27 @@ export default function TattooEditorScreen() {
   // El WebView no puede abrir el file:// que devuelve el selector de
   // imagenes, asi que el boceto viaja convertido a data URI.
   const sketchDataUri = useDataUri(design ? displayImageUrl(design) : null);
+
+  // Sugerencia de zona a partir de la pose de la foto, dentro del
+  // telefono (PoseDetector). Solo con foto tomada y sin resultado ya
+  // compuesto; se recuerda para que foto es, y al repetirla se vuelve a
+  // detectar.
+  const snapshot = mode === 'camera' && !proposal.renderedImageUrl ? proposal.cameraSnapshotUrl : undefined;
+  const photoDataUri = useDataUri(snapshot ?? null);
+  const [pose, setPose] = useState<{ forUri: string; result: PoseResult } | null>(null);
+  const poseForThisPhoto = snapshot && pose?.forUri === snapshot ? pose.result : null;
+  const zoneHint = useMemo<ZoneHint | undefined>(() => {
+    if (!snapshot) return undefined;
+    if (!poseForThisPhoto) return { state: 'detecting' };
+    if (poseForThisPhoto.status === 'error') return { state: 'unknown', reason: 'unavailable' };
+    // El centro del recuadro guia es donde se encuadro el tatuaje.
+    const center = scanFrame
+      ? { x: scanFrame.x + scanFrame.width / 2, y: scanFrame.y + scanFrame.height / 2 }
+      : { x: stageSize.width / 2, y: stageSize.height / 2 };
+    const point = stagePointToImage(center, stageSize, poseForThisPhoto.image);
+    const suggestion = suggestZoneFromPose(poseForThisPhoto.landmarks, poseForThisPhoto.image, point);
+    return suggestion ? { state: 'suggested', ...suggestion } : { state: 'unknown', reason: 'closeup' };
+  }, [snapshot, poseForThisPhoto, scanFrame, stageSize]);
   const styles = createStyles(colors);
 
   // La pantalla se puede abrir directo desde el menu lateral, sin pasar
@@ -549,7 +572,10 @@ export default function TattooEditorScreen() {
           </>
         )}
 
-        <BodyZonePicker value={proposal.bodyZone} onChange={proposal.setZone} />
+        <BodyZonePicker value={proposal.bodyZone} onChange={proposal.setZone} hint={zoneHint} />
+        {snapshot && photoDataUri && !poseForThisPhoto && (
+          <PoseDetector photoDataUri={photoDataUri} onResult={(result) => setPose({ forUri: snapshot, result })} />
+        )}
 
 
         <View style={styles.sliderLabel}>

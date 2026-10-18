@@ -71,3 +71,29 @@ describe('BodyZonePicker', () => {
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
 });
+
+describe('BodyZonePicker — sugerencia de la foto', () => {
+  it('mientras detecta, lo dice', () => {
+    expect(texts(render({ value: undefined, onChange: jest.fn(), hint: { state: 'detecting' } }))).toContain(
+      'Buscando en tu foto qué zona es…',
+    );
+  });
+
+  it('la sugerencia NO cambia la zona sola: se confirma con "Usar"', () => {
+    const onChange = jest.fn();
+    const tree = render({ value: undefined, onChange, hint: { state: 'suggested', zone: 'forearm', confidence: 'alta' } });
+    expect(onChange).not.toHaveBeenCalled();
+    pressByLabel(tree, 'Usar Antebrazo');
+    expect(onChange).toHaveBeenCalledWith('forearm');
+  });
+
+  it('con poca seguridad lo dice como duda', () => {
+    const tree = render({ value: undefined, onChange: jest.fn(), hint: { state: 'suggested', zone: 'calf', confidence: 'media' } });
+    expect(texts(tree).some((t) => t.startsWith('Puede que sea'))).toBe(true);
+  });
+
+  it('en un primer plano deja la eleccion manual y lo explica', () => {
+    const tree = render({ value: undefined, onChange: jest.fn(), hint: { state: 'unknown', reason: 'closeup' } });
+    expect(texts(tree).some((t) => t.includes('no se ve suficiente del cuerpo'))).toBe(true);
+  });
+});
