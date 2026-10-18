@@ -1,8 +1,10 @@
 import { CameraView } from 'expo-camera';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useZoneScanStore } from '../../controllers/useZoneScanStore';
+import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
 import type { Rect } from '../../models/zoneScan';
 import { DesignOverlay } from '../molecules/DesignOverlay';
@@ -38,6 +40,8 @@ export function CameraOverlay({
   const skin = useZoneScanStore((s) => s.skin);
   const onSkin = useZoneScanStore((s) => s.onSkin);
   const wrap = onSkin && Boolean(design);
+  // Mientras se arrastra, la piel sigue al dedo con la colocacion en vivo.
+  const [live, setLive] = useState<Placement | null>(null);
 
   return (
     <View style={styles.container}>
@@ -47,13 +51,18 @@ export function CameraOverlay({
         <SkinWrapView
           photoUri={null}
           designUri={displayImageUrl(design)}
-          placement={placement}
+          placement={live ?? placement}
           cutout={hideBackground}
           frame={scanFrame}
           settings={skin}
         />
       )}
-      <DesignOverlay design={design} guide={wrap} onRemove={onRemoveDesign} />
+      <DesignOverlay
+        design={design}
+        guide={wrap}
+        onRemove={onRemoveDesign}
+        onLivePlacement={wrap ? setLive : undefined}
+      />
     </View>
   );
 }

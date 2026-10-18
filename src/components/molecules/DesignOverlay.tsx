@@ -13,6 +13,7 @@ import Animated, {
 import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-native-svg';
 
 import { useEditorStore } from '../../controllers/useEditorStore';
+import type { Placement } from '../../models/placement';
 import type { TattooDesign } from '../../models/tattooDesign';
 import { displayImageUrl } from '../../models/tattooDesign';
 import { isOverTrash, TRASH_REVEAL_DRAG } from '../../models/trashZone';
@@ -84,14 +85,22 @@ export function DesignOverlay({
   design,
   guide = false,
   onRemove,
+  onLivePlacement,
 }: {
   design?: TattooDesign;
   /**
    * Modo guia: el boceto de verdad lo dibuja otra capa (aplicado sobre
-   * la piel, ver SkinWrapView). Aqui queda solo un fantasma con borde
-   * punteado, que es lo que se agarra para moverlo, girarlo y escalarlo.
+   * la piel, ver SkinWrapView). Aqui queda una zona INVISIBLE con su
+   * forma, que es lo que se agarra para moverlo, girarlo y escalarlo:
+   * no se ve ningun boceto plano ni marco encima del tatuaje.
    */
   guide?: boolean;
+  /**
+   * Mientras hay un dedo encima, la colocacion en vivo (unas 30 veces por
+   * segundo), para que la capa "en la piel" siga al dedo ya curvada en
+   * vez de saltar al soltar. Al terminar el gesto llega null.
+   */
+  onLivePlacement?: (placement: Placement | null) => void;
   /**
    * Si se pasa, arrastrar el boceto hacia abajo hace aparecer un
    * basurero abajo al centro; soltarlo encima lo quita.
@@ -125,6 +134,33 @@ export function DesignOverlay({
   const canRemove = Boolean(onRemove);
 
   const remove = () => onRemove?.();
+
+  // Colocacion en vivo, un fotograma si y otro no (~30/s): suficiente
+  // para que la piel siga al dedo sin saturar el puente con el WebView.
+  const liveTick = useSharedValue(0);
+  const emitLiveJS = (next: { x: number; y: number; scale: number; rotation: number }) =>
+    onLivePlacement?.({
+      offsetX: next.x / REFERENCE_SIZE,
+      offsetY: next.y / REFERENCE_SIZE,
+      scale: next.scale,
+      rotationDegrees: next.rotation,
+      opacity: placement.opacity,
+    });
+  const endLiveJS = () => onLivePlacement?.(null);
+  const hasLive = Boolean(onLivePlacement);
+  const emitLive = () => {
+    'worklet';
+    if (!hasLive) return;
+    liveTick.value += 1;
+    if (liveTick.value % 2 !== 0) return;
+    runOnJS(emitLiveJS)({
+      x: translateX.value,
+      y: translateY.value,
+      // Encima del basurero se encoge tambien la capa en la piel.
+      scale: scale.value * (overTrash.value === 1 ? 0.55 : 1),
+      rotation: rotation.value,
+    });
+  };
 
   const commit = (next: { x: number; y: number; scale: number; rotation: number }) => {
     setPlacement({
@@ -176,6 +212,7 @@ export function DesignOverlay({
       const over = isOverTrash(translateX.value, translateY.value, frameWidth.value, frameHeight.value);
       overTrash.value = over ? 1 : 0;
     })
+    .onChange(() => emitLive())
     .onEnd(() => {
       if (canRemove && overTrash.value === 1) {
         // Cae dentro del basurero y desaparece; la posicion vuelve al
@@ -191,6 +228,7 @@ export function DesignOverlay({
       isGesturing.value = false;
       trashVisible.value = withTiming(0, { duration: 160 });
       overTrash.value = 0;
+      if (hasLive) runOnJS(endLiveJS)();
     });
 
   const pinch = Gesture.Pinch()
@@ -200,8 +238,12 @@ export function DesignOverlay({
     })
     .onUpdate((e) => {
       scale.value = clamp(startScale.value * e.scale, MIN_SCALE, MAX_SCALE);
+      emitLive();
     })
-    .onEnd(save);
+    .onEnd(save)
+    .onFinalize(() => {
+      if (hasLive) runOnJS(endLiveJS)();
+    });
 
   const rotate = Gesture.Rotation()
     .onStart(() => {
@@ -210,8 +252,12 @@ export function DesignOverlay({
     })
     .onUpdate((e) => {
       rotation.value = startRotation.value + (e.rotation * 180) / Math.PI;
+      emitLive();
     })
-    .onEnd(save);
+    .onEnd(save)
+    .onFinalize(() => {
+      if (hasLive) runOnJS(endLiveJS)();
+    });
 
   // Doble toque: vuelve al centro, sin tamaño ni giro. Es la salida
   // cuando el boceto se queda en una posicion imposible de recuperar.
@@ -251,10 +297,9 @@ export function DesignOverlay({
       // Encima del basurero se encoge: "esto se va".
       { scale: scale.value * (overTrash.value === 1 ? 0.55 : 1) },
     ],
-    // En modo guia el fantasma se vuelve casi solido mientras hay un
-    // dedo encima: la capa "en la piel" se actualiza al soltar, y sin
-    // esto parecia que el boceto desaparecia al moverlo.
-    ...(guide ? { opacity: isGesturing.value ? 0.85 : 0.22 } : null),
+    // En modo guia no se ve nada: lo que se ve es el tatuaje en la piel,
+    // que sigue al dedo (onLivePlacement). Sin capa de ayuda encima.
+    ...(guide ? { opacity: 0 } : null),
   }));
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -267,7 +312,7 @@ export function DesignOverlay({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none" onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.wrapper, guide ? styles.guide : { opacity: placement.opacity }, style]}>
+        <Animated.View style={[styles.wrapper, guide ? null : { opacity: placement.opacity }, style]}>
           {hideBackground ? (
             <CutoutImage uri={displayImageUrl(design)} />
           ) : (
@@ -289,12 +334,4 @@ const styles = StyleSheet.create({
     marginTop: -BASE_SIZE / 2,
   },
   design: { width: BASE_SIZE, height: BASE_SIZE },
-  // Casi invisible pero con borde: se ve donde agarrarlo sin tapar
-  // el tatuaje aplicado que hay debajo.
-  guide: {
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#FFFFFF',
-    borderRadius: 12,
-  },
 });

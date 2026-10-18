@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -7,6 +7,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { useZoneScanStore, type Stroke } from '../../controllers/useZoneScanStore';
+import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
 import { clampView, screenToContent, strokeToPath, type Point, type Rect, type ScanView } from '../../models/zoneScan';
 import { flatToneColor, neonLightCore, neonLightHaloColor, useTheme } from '../../theme';
@@ -61,6 +62,7 @@ export function ZoneScanStage({
   const placement = useEditorStore((s) => s.placement);
   const hideBackground = useEditorStore((s) => s.hideBackground);
   const wrapOnSkin = showDesign && onSkin && Boolean(design);
+  const [live, setLive] = useState<Placement | null>(null);
 
   const stageW = useSharedValue(0);
   const stageH = useSharedValue(0);
@@ -194,7 +196,7 @@ export function ZoneScanStage({
             <SkinWrapView
               photoUri={uri}
               designUri={displayImageUrl(design)}
-              placement={placement}
+              placement={live ?? placement}
               cutout={hideBackground}
               frame={frame}
               settings={skin}
@@ -205,7 +207,7 @@ export function ZoneScanStage({
           )}
           {showDesign && (
             <View style={StyleSheet.absoluteFill} pointerEvents={tool === 'boceto' ? 'box-none' : 'none'}>
-              <DesignOverlay design={design} guide={wrapOnSkin} />
+              <DesignOverlay design={design} guide={wrapOnSkin} onLivePlacement={wrapOnSkin ? setLive : undefined} />
             </View>
           )}
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
