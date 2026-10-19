@@ -27,6 +27,7 @@ siembra cuentas cuyo rol lo escribe el trigger que define
 | `20261002140000_portfolio_storage.sql` | Bucket `portfolio` de Storage: lectura pública, escritura solo en la carpeta propia |
 | `20261018120000_design_likes_comments.sql` | `design_likes` y `design_comments` (me gusta y comentarios públicos bajo un diseño) y `appointments.design_id` (la cita recuerda de qué diseño salió) |
 | `20261018200000_profile_names_and_avatars.sql` | El comentario firma con el nombre real (perfil → registro → correo, nunca "Alguien") y se actualiza si cambia; `profiles.avatar_url` y bucket `avatars` (lectura pública, escritura solo en la carpeta propia) |
+| `20261019010000_backfill_missing_profiles.sql` | Crea la fila de `profiles` a las cuentas que no la tenian (sin ella no se guardaba el nombre) y pone nombre a los comentarios que quedaron sin autor |
 
 ## Comprobar que quedó bien
 
