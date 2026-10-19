@@ -25,3 +25,4 @@ export const withRepeat = identity;
 export const withSequence = identity;
 export const withDelay = (_: number, v: unknown) => v;
 export const runOnJS = identity;
+export const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);

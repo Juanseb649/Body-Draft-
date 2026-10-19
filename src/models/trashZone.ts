@@ -1,12 +1,9 @@
 /**
- * Donde esta el basurero que aparece al arrastrar un boceto hacia
- * abajo, en las coordenadas del boceto (desplazamiento desde el centro
- * del escenario, como en DesignOverlay). Va en un modulo aparte porque
- * se llama desde worklets de gestos y conviene poder probarlo.
+ * Donde esta el basurero que aparece al agarrar un boceto, en las
+ * coordenadas del boceto (desplazamiento desde el centro del
+ * escenario, como en DesignOverlay). Va en un modulo aparte porque se
+ * llama desde worklets de gestos y conviene poder probarlo.
  */
-
-/** Cuanto hay que arrastrar hacia abajo para que aparezca. */
-export const TRASH_REVEAL_DRAG = 24;
 
 /** Distancia del centro del basurero al borde inferior del escenario. */
 export const TRASH_CENTER_FROM_BOTTOM = 60;

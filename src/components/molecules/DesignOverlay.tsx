@@ -17,7 +17,7 @@ import { useEditorStore } from '../../controllers/useEditorStore';
 import type { Placement } from '../../models/placement';
 import type { TattooDesign } from '../../models/tattooDesign';
 import { displayImageUrl } from '../../models/tattooDesign';
-import { isOverTrash, TRASH_REVEAL_DRAG } from '../../models/trashZone';
+import { isOverTrash } from '../../models/trashZone';
 import { TrashTarget } from './TrashTarget';
 
 /**
@@ -104,8 +104,8 @@ export function DesignOverlay({
    */
   onLivePlacement?: (placement: Placement | null) => void;
   /**
-   * Si se pasa, arrastrar el boceto hacia abajo hace aparecer un
-   * basurero abajo al centro; soltarlo encima lo quita.
+   * Si se pasa, al agarrar el boceto aparece un basurero abajo al
+   * centro; soltarlo encima lo quita.
    */
   onRemove?: () => void;
   /**
@@ -213,6 +213,9 @@ export function DesignOverlay({
       isGesturing.value = true;
       startX.value = translateX.value;
       startY.value = translateY.value;
+      // El basurero aparece en cuanto se agarra el boceto, para que se
+      // sepa desde el principio a donde llevarlo para quitarlo.
+      if (canRemove) trashVisible.value = withTiming(1, { duration: 180 });
     })
     // `onChange` da lo movido desde el frame anterior, pero aqui se usa
     // `translation*`, que es el acumulado del gesto, sumado al valor con
@@ -222,9 +225,6 @@ export function DesignOverlay({
       translateX.value = clamp(startX.value + e.translationX, -limitX(), limitX());
       translateY.value = clamp(startY.value + e.translationY, -limitY(), limitY());
       if (!canRemove) return;
-      // Aparece solo al arrastrar HACIA ABAJO: mover el boceto hacia
-      // los lados o hacia arriba no tiene por que mostrar un basurero.
-      if (e.translationY > TRASH_REVEAL_DRAG && trashVisible.value === 0) trashVisible.value = withTiming(1, { duration: 180 });
       const over = isOverExternal
         ? isOverExternal(e.absoluteX, e.absoluteY)
         : isOverTrash(translateX.value, translateY.value, frameWidth.value, frameHeight.value);
@@ -315,9 +315,6 @@ export function DesignOverlay({
       // Encima del basurero se encoge: "esto se va".
       { scale: scale.value * (overTrash.value === 1 ? 0.55 : 1) },
     ],
-    // En modo guia no se ve nada: lo que se ve es el tatuaje en la piel,
-    // que sigue al dedo (onLivePlacement). Sin capa de ayuda encima.
-    ...(guide ? { opacity: 0 } : null),
   }));
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -331,7 +328,15 @@ export function DesignOverlay({
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none" onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.wrapper, guide ? null : { opacity: placement.opacity }, style]}>
-          {hideBackground ? (
+          {/* En modo guia no se ve nada: lo que se ve es el tatuaje en la
+              piel, que sigue al dedo (onLivePlacement). Queda un hueco
+              transparente del tamaño del boceto para agarrarlo. NO se
+              esconde con opacity 0: en Android, Gesture Handler ignora
+              las vistas con alfa menor a 0.1 y el boceto no se podia
+              mover ni llevar al basurero. */}
+          {guide ? (
+            <View style={styles.design} />
+          ) : hideBackground ? (
             <CutoutImage uri={displayImageUrl(design)} />
           ) : (
             <Image source={{ uri: displayImageUrl(design) }} style={styles.design} resizeMode="contain" />

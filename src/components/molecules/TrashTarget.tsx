@@ -8,8 +8,8 @@ export const TRASH_BOTTOM = 28;
 export const TRASH_SIZE = 64;
 
 /**
- * El basurero que aparece solo cuando se arrastra el boceto hacia
- * abajo. `visible` (0..1) lo hace subir y aparecer; `hot` (0..1) es que
+ * El basurero que aparece solo mientras se arrastra el boceto.
+ * `visible` (0..1) lo hace subir y aparecer; `hot` (0..1) es que
  * el boceto ya esta encima: crece y se pone rojo, para que se sepa que
  * al soltar se va.
  *
