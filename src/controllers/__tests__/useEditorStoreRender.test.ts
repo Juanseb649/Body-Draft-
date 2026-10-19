@@ -101,3 +101,22 @@ describe('useEditorStore.renderWithAI', () => {
     expect(useEditorStore.getState().renderError).toBeUndefined();
   });
 });
+
+describe('useEditorStore.applySkinComposite', () => {
+  it('la foto con el tatuaje aplicado en el telefono pasa a ser el resultado, sin llamar a la IA', () => {
+    useEditorStore.getState().attachCameraSnapshot('file:///foto.jpg');
+    useEditorStore.getState().applySkinComposite('file:///docs/en-la-piel/propuesta-1.jpg');
+
+    expect(useEditorStore.getState().renderedImageUrl).toBe('file:///docs/en-la-piel/propuesta-1.jpg');
+    expect(compose).not.toHaveBeenCalled();
+  });
+
+  it('volver a ajustar quita el resultado pero conserva la foto', () => {
+    useEditorStore.getState().attachCameraSnapshot('file:///foto.jpg');
+    useEditorStore.getState().applySkinComposite('file:///docs/x.jpg');
+    useEditorStore.getState().clearRenderedImage();
+
+    expect(useEditorStore.getState().renderedImageUrl).toBeUndefined();
+    expect(useEditorStore.getState().cameraSnapshotUrl).toBe('file:///foto.jpg');
+  });
+});

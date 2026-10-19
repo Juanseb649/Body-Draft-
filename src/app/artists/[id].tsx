@@ -4,17 +4,18 @@ import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
+import { Avatar } from '../../components/atoms/Avatar';
 import { artistRepository, designRepository } from '../../core/services';
 import type { Artist } from '../../models/artist';
 import type { TattooDesign } from '../../models/tattooDesign';
-import { neonLightCore, neonLightHaloColor, type as typo, useTheme } from '../../theme';
+import { type as typo, useTheme } from '../../theme';
 
 /** Perfil del artista: bio + portafolio, con acceso a agendar cita. */
 export default function ArtistProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, scheme } = useTheme();
+  const { colors } = useTheme();
   const [artist, setArtist] = useState<Artist | undefined>(undefined);
   const [works, setWorks] = useState<TattooDesign[]>([]);
 
@@ -47,17 +48,8 @@ export default function ArtistProfileScreen() {
             <Text style={[typo.title, { color: colors.textStrong }]}>‹</Text>
           </Pressable>
 
-          <View
-            style={[
-              styles.avatar,
-              scheme === 'light'
-                ? { borderColor: neonLightCore('fuchsia'), boxShadow: `0 0 12px ${neonLightHaloColor('fuchsia')}` }
-                : { borderColor: colors.primaryText },
-            ]}
-          >
-            <Text style={[styles.avatarLabel, { color: scheme === 'light' ? neonLightCore('fuchsia') : colors.primaryText }]}>
-              {artist.name.charAt(0)}
-            </Text>
+          <View style={styles.avatar}>
+            <Avatar name={artist.name} imageUrl={artist.avatarUrl} size={88} />
           </View>
           <Text style={[typo.title, { color: colors.textStrong, marginTop: 12 }]}>{artist.name}</Text>
           <Text style={[typo.bodyStrong, { color: colors.secondary }]}>{artist.specialty}</Text>
@@ -72,7 +64,16 @@ export default function ArtistProfileScreen() {
           Este tatuador todavía no publicó trabajos.
         </Text>
       }
-      renderItem={({ item }) => <Image source={{ uri: item.imageUrl }} style={styles.portfolioImage} />}
+      renderItem={({ item }) => (
+        <Pressable
+          onPress={() => router.push(`/designs/${item.id}`)}
+          style={({ pressed }) => [styles.portfolioCell, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}: ver, comentar o agendar`}
+        >
+          <Image source={{ uri: item.imageUrl }} style={styles.portfolioImage} />
+        </Pressable>
+      )}
       ListFooterComponent={
         <View style={styles.footer}>
           <AppButton label="Agendar" onPress={() => router.push(`/appointment/${artist.id}`)} />
@@ -87,18 +88,10 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     center: { flex: 1 },
     header: { paddingHorizontal: 20, alignItems: 'center' },
     iconButton: { alignSelf: 'flex-start', width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-    avatar: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      borderWidth: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 8,
-    },
-    avatarLabel: { fontSize: 44, fontFamily: 'Sacramento' },
+    avatar: { marginTop: 8 },
     row: { gap: 12, paddingHorizontal: 20 },
-    portfolioImage: { flex: 1, aspectRatio: 1, borderRadius: 14, backgroundColor: colors.surfaceRaised },
+    portfolioCell: { flex: 1 },
+    portfolioImage: { width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: colors.surfaceRaised },
     footer: { paddingHorizontal: 20, marginTop: 24 },
   });
 }

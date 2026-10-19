@@ -32,6 +32,8 @@ beforeEach(() => {
   images = {
     uploadPortfolioImage: jest.fn().mockResolvedValue('https://cdn.test/portfolio/u1/foto.jpg'),
     removePortfolioImage: jest.fn().mockResolvedValue(undefined),
+    uploadAvatar: jest.fn(),
+    removeAvatar: jest.fn(),
   };
   repo = new DesignRepository(storage, ai, images);
 });

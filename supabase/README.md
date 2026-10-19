@@ -25,6 +25,23 @@ siembra cuentas cuyo rol lo escribe el trigger que define
 | `20261002120000_role_from_signup.sql` | El rol y la especialidad se eligen **al registrarse**, no después en Ajustes |
 | `20261002130000_seed_demo_artists.sql` | Dos tatuadores de demostración con portafolio (**solo desarrollo**) |
 | `20261002140000_portfolio_storage.sql` | Bucket `portfolio` de Storage: lectura pública, escritura solo en la carpeta propia |
+| `20261018120000_design_likes_comments.sql` | `design_likes` y `design_comments` (me gusta y comentarios públicos bajo un diseño) y `appointments.design_id` (la cita recuerda de qué diseño salió) |
+| `20261018200000_profile_names_and_avatars.sql` | El comentario firma con el nombre real (perfil → registro → correo, nunca "Alguien") y se actualiza si cambia; `profiles.avatar_url` y bucket `avatars` (lectura pública, escritura solo en la carpeta propia) |
+| `20261018210000_ai_usage_quota.sql` | Cuota diaria de IA por cuenta (`ai_usage`, `consume_ai_quota`, `refund_ai_quota`), usada por la Edge Function `ai` |
+| `20261019010000_backfill_missing_profiles.sql` | Crea la fila de `profiles` a las cuentas que no la tenian (sin ella no se guardaba el nombre) y pone nombre a los comentarios que quedaron sin autor |
+
+## Fotos reales para los tatuadores demo
+
+El seed les deja imágenes al azar de picsum. Para cambiarlas por fotos
+de tatuajes de su estilo (blackwork para Nora, realismo para Rubén):
+
+```bash
+node tools/seed-demo-tattoos.mjs
+```
+
+Sube las fotos de `tools/demo-tattoos/` al bucket `portfolio` de cada
+cuenta y actualiza sus trabajos y su portafolio. Créditos y licencias
+en `tools/demo-tattoos/CREDITS.md`.
 
 ## Comprobar que quedó bien
 
@@ -38,6 +55,17 @@ Inicia sesión con una de las cuentas sembradas y lee `profiles` y
 `designs` por la API pública, con la misma anon key y las mismas
 policies de RLS que usa la app — o sea, comprueba lo que la app va a
 ver, no lo que hay en la base por detrás.
+
+## Tests de la base (pgTAP)
+
+`tests/database/*.test.sql` comprueban las policies de RLS con usuarios
+simulados (cada archivo corre en una transacción que se deshace). Hace
+falta Docker y la base local de la CLI:
+
+```bash
+npx supabase start
+npx supabase test db
+```
 
 ## Adoptar la Supabase CLI (recomendado, no obligatorio)
 

@@ -131,3 +131,22 @@ describe('ArtistRepository.updateMyProfile', () => {
     expect(chain.eq).toHaveBeenCalledWith('id', 'u1');
   });
 });
+
+describe('ArtistRepository — perfil propio sin fila', () => {
+  it('guardar el nombre usa upsert: crea la fila si la cuenta no tenia perfil (antes el update no hacia nada)', async () => {
+    const select = jest.fn().mockResolvedValue({ data: [{ id: 'u1' }], error: null });
+    const upsert = jest.fn(() => ({ select }));
+    from.mockReturnValue({ upsert });
+
+    await repo.setMyName('u1', 'Sebas Ibarra');
+
+    expect(upsert).toHaveBeenCalledWith({ id: 'u1', name: 'Sebas Ibarra' }, { onConflict: 'id' });
+  });
+
+  it('si el servidor no devuelve la fila, es un error (no se finge que se guardo)', async () => {
+    const select = jest.fn().mockResolvedValue({ data: [], error: null });
+    from.mockReturnValue({ upsert: jest.fn(() => ({ select })) });
+
+    await expect(repo.setMyName('u1', 'Sebas')).rejects.toThrow(/No se pudo guardar el perfil/);
+  });
+});

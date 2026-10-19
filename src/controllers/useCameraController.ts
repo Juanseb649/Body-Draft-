@@ -13,7 +13,10 @@ export function useCameraController() {
   const cameraRef = useRef<CameraView>(null);
 
   const capture = async (): Promise<string | undefined> => {
-    const photo = await cameraRef.current?.takePictureAsync();
+    // 0.7 y no la calidad maxima: la foto viaja como data URI al
+    // WebView que aplica el tatuaje en la piel, y una de 12 MP a
+    // calidad 1 son varios MB de base64 cruzando el puente.
+    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.7 });
     return photo?.uri;
   };
 

@@ -32,7 +32,7 @@ export const BODY_ZONE_LABELS: Record<BodyZone, string> = {
   thigh: 'Muslo',
   calf: 'Pantorrilla',
   ankle: 'Tobillo',
-  wrist: 'Muneca',
+  wrist: 'Muñeca',
   hand: 'Mano',
   neck: 'Cuello',
 };

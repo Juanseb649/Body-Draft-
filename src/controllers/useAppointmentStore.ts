@@ -9,6 +9,7 @@ interface BookAppointmentInput {
   artistId: string;
   dateTime: string;
   proposalId?: string;
+  designId?: string;
   notes?: string;
 }
 

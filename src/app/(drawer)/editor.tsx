@@ -2,8 +2,8 @@ import Slider from '@react-native-community/slider';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
@@ -13,11 +13,12 @@ import { MenuButton } from '../../components/atoms/MenuButton';
 import { SectionIcon } from '../../components/atoms/SectionIcon';
 import { Segmented } from '../../components/atoms/Segmented';
 import { Spinner } from '../../components/atoms/Spinner';
-import { DesignOverlay } from '../../components/molecules/DesignOverlay';
 import { BodyModelViewer } from '../../components/organisms/BodyModelViewer';
 import { CameraOverlay } from '../../components/organisms/CameraOverlay';
-import { AiPhotoConsentModal } from '../../components/organisms/AiPhotoConsentModal';
+import { BodyZonePicker, type ZoneHint } from '../../components/molecules/BodyZonePicker';
 import { CreateIntroModal } from '../../components/organisms/CreateIntroModal';
+import { PoseDetector, type PoseResult } from '../../components/organisms/PoseDetector';
+import { ZoneScanStage } from '../../components/organisms/ZoneScanStage';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useBodyModel } from '../../controllers/useBodyModel';
 import { useCameraController } from '../../controllers/useCameraController';
@@ -25,15 +26,14 @@ import { useDataUri } from '../../controllers/useDataUri';
 import { useDesignStore } from '../../controllers/useDesignStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
-import {
-  BODY_SILHOUETTES,
-  BODY_ZONES,
-  BODY_ZONE_LABELS,
-  bodyZoneLabel,
-  type BodySilhouette,
-  type BodyZone,
-} from '../../models/bodyZone';
+import { useZoneScanStore } from '../../controllers/useZoneScanStore';
+import { BODY_SILHOUETTES, bodyZoneLabel, type BodySilhouette } from '../../models/bodyZone';
+import type { Placement } from '../../models/placement';
 import { displayImageUrl, type TattooDesign } from '../../models/tattooDesign';
+import { AXIS_RANGE, CURVATURE_RANGE, WIDTH_SCALE_RANGE, type InkMode } from '../../models/skinWrap';
+import { stagePointToImage, suggestZoneFromPose } from '../../models/poseZone';
+import { scanFrameFor, type Size } from '../../models/zoneScan';
+import { saveDataUriToDocuments } from '../../services/imageFileCache';
 import { type as typo, useTheme } from '../../theme';
 
 type Mode = 'camera' | 'mannequin';
@@ -42,6 +42,11 @@ const SILHOUETTE_LABEL: Record<BodySilhouette, string> = {
   masculine: 'Masculino',
   feminine: 'Femenino',
 };
+
+const INK_OPTIONS: { value: InkMode; label: string }[] = [
+  { value: 'color', label: 'Color' },
+  { value: 'bn', label: 'Blanco y negro' },
+];
 
 const MODES: { value: Mode; label: string; hint: string; icon: IconName }[] = [
   { value: 'camera', label: 'Cámara', hint: 'Sobre tu piel', icon: 'camera' },
@@ -71,11 +76,29 @@ export default function TattooEditorScreen() {
   const seenIntro = useSettingsStore((s) => s.onboarding.seenCreateIntro);
   const markIntroSeen = useSettingsStore((s) => s.markCreateIntroSeen);
 
-  const allowAiPhoto = useSettingsStore((s) => s.privacy.allowAiPhotoUpload);
-  const setAllowAiPhoto = useSettingsStore((s) => s.setAllowAiPhotoUpload);
-
   const [mode, setMode] = useState<Mode>('camera');
-  const [consentOpen, setConsentOpen] = useState(false);
+  const [stageSize, setStageSize] = useState<Size>({ width: 0, height: 0 });
+  const scan = useZoneScanStore();
+  // El recuadro guia cambia de forma con la zona elegida en la hoja.
+  const scanFrame = useMemo(
+    () => (stageSize.width > 0 ? scanFrameFor(stageSize, proposal.bodyZone) : undefined),
+    [stageSize, proposal.bodyZone],
+  );
+  const scanLabel = proposal.bodyZone
+    ? `Encuadra tu ${bodyZoneLabel(proposal.bodyZone).toLowerCase()}`
+    : 'Encuadra la zona del tatuaje';
+  // Lo ultimo que se tiro al basurero, para poder deshacerlo.
+  const [removed, setRemoved] = useState<{ designId: string; placement: Placement } | null>(null);
+  const [exportRequest, setExportRequest] = useState(0);
+  const [isApplying, setIsApplying] = useState(false);
+  const [skinError, setSkinError] = useState<string | undefined>(undefined);
+  const { resetSkinFor } = scan;
+
+  // Cada zona parte con su curvatura (un antebrazo es casi un
+  // cilindro, una espalda casi plana); el usuario la ajusta despues.
+  useEffect(() => {
+    resetSkinFor(proposal.bodyZone);
+  }, [proposal.bodyZone, resetSkinFor]);
   // La primera vez se abre solo. Despues queda a un toque del boton (i).
   const [introOpen, setIntroOpen] = useState(!seenIntro);
 
@@ -83,6 +106,27 @@ export default function TattooEditorScreen() {
   // El WebView no puede abrir el file:// que devuelve el selector de
   // imagenes, asi que el boceto viaja convertido a data URI.
   const sketchDataUri = useDataUri(design ? displayImageUrl(design) : null);
+
+  // Sugerencia de zona a partir de la pose de la foto, dentro del
+  // telefono (PoseDetector). Solo con foto tomada y sin resultado ya
+  // compuesto; se recuerda para que foto es, y al repetirla se vuelve a
+  // detectar.
+  const snapshot = mode === 'camera' && !proposal.renderedImageUrl ? proposal.cameraSnapshotUrl : undefined;
+  const photoDataUri = useDataUri(snapshot ?? null);
+  const [pose, setPose] = useState<{ forUri: string; result: PoseResult } | null>(null);
+  const poseForThisPhoto = snapshot && pose?.forUri === snapshot ? pose.result : null;
+  const zoneHint = useMemo<ZoneHint | undefined>(() => {
+    if (!snapshot) return undefined;
+    if (!poseForThisPhoto) return { state: 'detecting' };
+    if (poseForThisPhoto.status === 'error') return { state: 'unknown', reason: 'unavailable' };
+    // El centro del recuadro guia es donde se encuadro el tatuaje.
+    const center = scanFrame
+      ? { x: scanFrame.x + scanFrame.width / 2, y: scanFrame.y + scanFrame.height / 2 }
+      : { x: stageSize.width / 2, y: stageSize.height / 2 };
+    const point = stagePointToImage(center, stageSize, poseForThisPhoto.image);
+    const suggestion = suggestZoneFromPose(poseForThisPhoto.landmarks, poseForThisPhoto.image, point);
+    return suggestion ? { state: 'suggested', ...suggestion } : { state: 'unknown', reason: 'closeup' };
+  }, [snapshot, poseForThisPhoto, scanFrame, stageSize]);
   const styles = createStyles(colors);
 
   // La pantalla se puede abrir directo desde el menu lateral, sin pasar
@@ -113,36 +157,111 @@ export default function TattooEditorScreen() {
     };
     await uploadDesign(sketch);
     proposal.selectDesign(sketch.id);
+    setRemoved(null);
   };
 
-  /** Dispara la foto: a partir de aqui se revisa sobre la captura. */
+  /**
+   * Dispara la foto: a partir de aqui se revisa sobre la captura. La
+   * foto se abre ya acercada al recuadro guia, que es la zona que se
+   * encuadro: se trabaja sobre la piel, no sobre todo lo que entro en
+   * cuadro. "Ver la foto entera" deshace ese acercamiento.
+   */
   const takePhoto = async () => {
     const uri = await capture();
-    if (uri) proposal.attachCameraSnapshot(uri);
+    if (!uri) return;
+    scan.reset();
+    proposal.attachCameraSnapshot(uri);
+    scan.focusZone(stageSize, proposal.bodyZone);
   };
 
-  const composeWithAI = async () => {
-    if (!design) return;
-    // El consentimiento se pide una vez y queda guardado; sin el, ni
-    // se llega a construir la peticion.
-    if (!allowAiPhoto) {
-      setConsentOpen(true);
-      return;
+  const retakePhoto = () => {
+    scan.reset();
+    proposal.discardCameraSnapshot();
+  };
+
+  const onStageLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setStageSize({ width, height });
+  };
+
+  /** El boceto cayo en el basurero (camara o maniquin). */
+  const removeDesign = () => {
+    if (!proposal.designId) return;
+    setRemoved({ designId: proposal.designId, placement: proposal.placement });
+    proposal.removeDesign();
+  };
+
+  const undoRemove = () => {
+    if (!removed) return;
+    proposal.selectDesign(removed.designId);
+    proposal.setPlacement(removed.placement);
+    setRemoved(null);
+  };
+
+  /** Pide al WebView la foto con el tatuaje ya aplicado (ver onSkinExported). */
+  const applyToPhoto = () => {
+    setSkinError(undefined);
+    setIsApplying(true);
+    setExportRequest((n) => n + 1);
+  };
+
+  const onSkinExported = (dataUri: string) => {
+    try {
+      const file = saveDataUriToDocuments(dataUri, 'en-la-piel', 'propuesta');
+      proposal.applySkinComposite(file);
+      // Si se pidio "Guardar propuesta" sin haber aplicado antes, se
+      // aplica y se guarda con esta imagen.
+      if (saving) void finishSave(file);
+    } catch (e) {
+      setSkinError(e instanceof Error ? e.message : String(e));
+      setSaving(false);
+    } finally {
+      setIsApplying(false);
     }
-    await proposal.renderWithAI(displayImageUrl(design), bodyZoneLabel(proposal.bodyZone));
   };
 
-  const acceptConsent = async () => {
-    setAllowAiPhoto(true);
-    setConsentOpen(false);
-    if (design) {
-      await proposal.renderWithAI(displayImageUrl(design), bodyZoneLabel(proposal.bodyZone));
+  const onSkinError = (message: string) => {
+    setIsApplying(false);
+    setSkinError(message);
+  };
+
+  // "Guardar propuesta" guarda tambien la imagen que la representa en
+  // "Propuestas guardadas": la foto con el tatuaje aplicado, o una
+  // captura del maniqui. Las dos se piden a su WebView y llegan despues.
+  const [saving, setSaving] = useState(false);
+  const [snapshotRequest, setSnapshotRequest] = useState(0);
+
+  const finishSave = async (previewImageUrl?: string) => {
+    try {
+      await proposal.save(ownerId, previewImageUrl);
+      router.push('/propuestas');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onMannequinSnapshot = (dataUri: string) => {
+    if (!saving) return;
+    try {
+      void finishSave(saveDataUriToDocuments(dataUri, 'propuestas', 'maniqui'));
+    } catch {
+      void finishSave(undefined);
     }
   };
 
   const handleSave = async () => {
-    await proposal.save();
-    router.push('/artists');
+    if (!design || saving) return;
+    setSaving(true);
+    if (mode === 'mannequin' && model.uri) {
+      setSnapshotRequest((n) => n + 1);
+      return;
+    }
+    if (mode === 'camera' && proposal.cameraSnapshotUrl && !proposal.renderedImageUrl && scan.onSkin) {
+      applyToPhoto();
+      return;
+    }
+    // Foto ya aplicada, o camara en vivo sin foto (entonces, el boceto).
+    await finishSave(proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl ?? displayImageUrl(design));
   };
 
   const renderStage = () => {
@@ -152,14 +271,21 @@ export default function TattooEditorScreen() {
       if (proposal.cameraSnapshotUrl) {
         return (
           <View style={{ flex: 1 }}>
-            <Image
-              source={{ uri: proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="contain"
-            />
             {/* Sobre el resultado de la IA el boceto ya esta dentro
-                de la imagen: volver a superponerlo lo duplicaria. */}
-            {!proposal.renderedImageUrl && <DesignOverlay design={design} />}
+                de la imagen: volver a superponerlo lo duplicaria. La
+                foto va en "cover", igual que la camara en vivo, para
+                que el boceto quede donde se vio al disparar. */}
+            <ZoneScanStage
+              uri={proposal.renderedImageUrl ?? proposal.cameraSnapshotUrl}
+              design={design}
+              showDesign={!proposal.renderedImageUrl}
+              fit={proposal.renderedImageUrl ? 'contain' : 'cover'}
+              onRemoveDesign={removeDesign}
+              frame={scanFrame}
+              exportRequest={exportRequest}
+              onExported={onSkinExported}
+              onError={onSkinError}
+            />
             {proposal.isRendering && (
               <View style={styles.rendering}>
                 <Spinner color="#FFFFFF" />
@@ -169,7 +295,17 @@ export default function TattooEditorScreen() {
           </View>
         );
       }
-      if (permission?.granted) return <CameraOverlay cameraRef={cameraRef} design={design} />;
+      if (permission?.granted) {
+        return (
+          <CameraOverlay
+            cameraRef={cameraRef}
+            design={design}
+            scanFrame={scanFrame}
+            scanLabel={scanLabel}
+            onRemoveDesign={removeDesign}
+          />
+        );
+      }
       return (
         <View style={styles.center}>
           <Icon name="camera" size={44} color={colors.textMuted} />
@@ -201,7 +337,11 @@ export default function TattooEditorScreen() {
           rotationDegrees={proposal.placement.rotationDegrees}
           opacity={proposal.placement.opacity}
           cutout={proposal.hideBackground}
+          ink={scan.skin.ink}
           onSizeChange={(scale) => proposal.setPlacement({ scale })}
+          onRemove={removeDesign}
+          snapshotRequest={snapshotRequest}
+          onSnapshot={onMannequinSnapshot}
         />
       );
     }
@@ -216,14 +356,14 @@ export default function TattooEditorScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.stage}>
+      <View style={styles.stage} onLayout={onStageLayout}>
         {renderStage()}
 
         <View style={[styles.topBar, { top: insets.top + 8 }]}>
           <MenuButton />
-          <View style={styles.titleGroup}>
-            <SectionIcon section="crea" size={30} />
-            <Text style={[typo.logoSection, styles.title]}>Crea</Text>
+          {/* Solo el logo de la seccion, centrado (sin el nombre al lado). */}
+          <View style={styles.titleGroup} accessible accessibilityRole="header" accessibilityLabel="Crea">
+            <SectionIcon section="crea" size={40} />
           </View>
           <Pressable
             onPress={() => setIntroOpen(true)}
@@ -235,9 +375,24 @@ export default function TattooEditorScreen() {
           </Pressable>
         </View>
 
+        {/* Sin boceto: un atajo para adjuntar otro (y deshacer, si se
+            acaba de tirar al basurero). Sobre el disparador, no debajo. */}
         {!design && (
-          <View style={[styles.emptyHint, { bottom: 16 }]}>
-            <Text style={[typo.caption, { color: '#FFFFFF' }]}>Adjunta un boceto para verlo sobre el cuerpo</Text>
+          <View style={[styles.emptyHint, { bottom: 104 }]}>
+            {removed && (
+              <>
+                <Text style={[typo.caption, { color: '#FFFFFF' }]}>Boceto quitado</Text>
+                <Pressable onPress={undoRemove} hitSlop={10} accessibilityRole="button">
+                  <Text style={[typo.bodyStrong, styles.hintAction]}>Deshacer</Text>
+                </Pressable>
+                <Text style={[typo.caption, { color: 'rgba(255,255,255,0.5)' }]}>·</Text>
+              </>
+            )}
+            <Pressable onPress={attachSketch} hitSlop={10} accessibilityRole="button">
+              <Text style={[typo.bodyStrong, styles.hintAction]}>
+                {removed ? 'Adjuntar otro' : 'Adjunta un boceto para verlo sobre el cuerpo'}
+              </Text>
+            </Pressable>
           </View>
         )}
 
@@ -298,24 +453,108 @@ export default function TattooEditorScreen() {
           </Pressable>
         </View>
 
+        {mode === 'camera' && design && !proposal.renderedImageUrl && (
+          <>
+            <Text style={styles.label}>Sobre la piel</Text>
+            <Segmented
+              value={scan.onSkin ? 'piel' : 'plano'}
+              onChange={(v) => scan.setOnSkin(v === 'piel')}
+              options={[
+                { value: 'piel', label: 'En la piel' },
+                { value: 'plano', label: 'Plano' },
+              ]}
+            />
+            {scan.onSkin && (
+              <>
+                <Text style={styles.hint}>
+                  El recuadro es tu {proposal.bodyZone ? bodyZoneLabel(proposal.bodyZone).toLowerCase() : 'zona'}:
+                  el diseño se envuelve en su curva y toma la luz de tu piel. Encuádralo para que el recuadro
+                  abrace el miembro.
+                </Text>
+
+                <View style={styles.sliderLabel}>
+                  <Text style={[typo.bodyStrong, { color: colors.text }]}>Curvatura</Text>
+                  <Text style={styles.sliderValue}>{Math.round(scan.skin.curvature * 100)} %</Text>
+                </View>
+                <Slider
+                  minimumValue={CURVATURE_RANGE.min}
+                  maximumValue={CURVATURE_RANGE.max}
+                  value={scan.skin.curvature}
+                  onSlidingComplete={(curvature) => scan.setSkin({ curvature })}
+                  minimumTrackTintColor={colors.primary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.primary}
+                  accessibilityLabel="Curvatura de la zona"
+                />
+
+                <View style={styles.sliderLabel}>
+                  <Text style={[typo.bodyStrong, { color: colors.text }]}>Grosor de la zona</Text>
+                  <Text style={styles.sliderValue}>{Math.round(scan.skin.widthScale * 100)} %</Text>
+                </View>
+                <Slider
+                  minimumValue={WIDTH_SCALE_RANGE.min}
+                  maximumValue={WIDTH_SCALE_RANGE.max}
+                  value={scan.skin.widthScale}
+                  onSlidingComplete={(widthScale) => scan.setSkin({ widthScale })}
+                  minimumTrackTintColor={colors.secondary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.secondary}
+                  accessibilityLabel="Grosor del miembro"
+                />
+
+                <View style={styles.sliderLabel}>
+                  <Text style={[typo.bodyStrong, { color: colors.text }]}>Inclinación</Text>
+                  <Text style={styles.sliderValue}>{Math.round(scan.skin.axisDegrees)}°</Text>
+                </View>
+                <Slider
+                  minimumValue={AXIS_RANGE.min}
+                  maximumValue={AXIS_RANGE.max}
+                  step={1}
+                  value={scan.skin.axisDegrees}
+                  onSlidingComplete={(axisDegrees) => scan.setSkin({ axisDegrees })}
+                  minimumTrackTintColor={colors.secondary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.secondary}
+                  accessibilityLabel="Inclinación del miembro en la foto"
+                />
+              </>
+            )}
+          </>
+        )}
+
         {mode === 'camera' && proposal.cameraSnapshotUrl && (
           <>
-            <AppButton
-              label={proposal.renderedImageUrl ? 'Rehacer la composición' : 'Ver resultado realista'}
-              onPress={composeWithAI}
-              isLoading={proposal.isRendering}
-              disabled={!design}
-            />
+            {proposal.renderedImageUrl ? (
+              <AppButton label="Volver a ajustar" variant="secondary" size="M" onPress={proposal.clearRenderedImage} />
+            ) : (
+              <>
+                <AppButton
+                  label="Aplicar a la foto"
+                  onPress={applyToPhoto}
+                  isLoading={isApplying}
+                  disabled={!design || !scan.onSkin}
+                />
+                <Text style={styles.hint}>
+                  Se hace aquí, en tu teléfono, y es lo que se guarda con la propuesta.
+                </Text>
+              </>
+            )}
+            {skinError && <Text style={styles.error}>{skinError}</Text>}
+
+            {/* Sin modos: lo que hacen los dedos depende de donde empiezan. */}
             <Text style={styles.hint}>
-              La IA aplica el tatuaje siguiendo la curvatura y la luz de tu piel. Tu foto se envía a Google para
-              esto; el resto de la app no sale del teléfono.
+              Sobre el diseño: un dedo lo mueve y dos lo giran y cambian su tamaño; llévalo abajo al centro para
+              quitarlo. Fuera del diseño: pellizca para acercar la foto y arrástrala para recorrerla.
             </Text>
-            {proposal.renderError && <Text style={styles.error}>{proposal.renderError}</Text>}
+            <View style={styles.toolRow}>
+              <AppButton label="Ver la foto entera" variant="ghost" size="S" onPress={scan.resetView} />
+            </View>
+
             <AppButton
               label="Repetir la foto"
               variant="secondary"
               size="M"
-              onPress={proposal.discardCameraSnapshot}
+              onPress={retakePhoto}
             />
           </>
         )}
@@ -324,7 +563,7 @@ export default function TattooEditorScreen() {
           <>
             <Text style={styles.hint}>
               {mode === 'mannequin'
-                ? 'Un dedo gira el maniquí, dos lo recorren de arriba a abajo. Toca dónde quieres el tatuaje y pellizca para su tamaño.'
+                ? 'Arrastra el tatuaje por la piel; un dedo fuera de él gira el maniquí y dos lo recorren. Pellizca el tatuaje para su tamaño, o llévalo abajo al basurero para quitarlo.'
                 : 'Arrastra el boceto con un dedo; con dos, gíralo y cambia su tamaño. Doble toque lo recentra.'}
             </Text>
 
@@ -338,9 +577,13 @@ export default function TattooEditorScreen() {
               ]}
             />
             <Text style={styles.hint}>
-              &quot;Sin fondo&quot; vuelve transparente el papel del boceto al instante, aquí en el teléfono. Si está
-              sobre un fondo complicado y no basta, el recorte con IA entiende la escena.
+              &quot;Sin fondo&quot; quita el papel y deja solo el trazo, aquí en el teléfono, sin perder los colores. Si
+              está sobre un fondo complicado y no basta, el recorte con IA entiende la escena.
             </Text>
+
+            {/* Un solo selector para camara, foto y maniqui. */}
+            <Text style={styles.label}>Color del diseño</Text>
+            <Segmented value={scan.skin.ink} onChange={(ink) => scan.setSkin({ ink })} options={INK_OPTIONS} />
 
             <AppButton
               label={hasCutout ? 'Deshacer recorte con IA' : 'Recortar con IA'}
@@ -370,18 +613,11 @@ export default function TattooEditorScreen() {
           </>
         )}
 
-        <Text style={styles.label}>Zona del cuerpo</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.zoneRow}>
-          {BODY_ZONES.map((zone: BodyZone) => (
-            <Chip
-              key={zone}
-              label={BODY_ZONE_LABELS[zone]}
-              selected={proposal.bodyZone === zone}
-              onPress={() => proposal.setZone(zone)}
-              tone="blue"
-            />
-          ))}
-        </ScrollView>
+        <BodyZonePicker value={proposal.bodyZone} onChange={proposal.setZone} hint={zoneHint} />
+        {snapshot && photoDataUri && !poseForThisPhoto && (
+          <PoseDetector photoDataUri={photoDataUri} onResult={(result) => setPose({ forUri: snapshot, result })} />
+        )}
+
 
         <View style={styles.sliderLabel}>
           <Text style={[typo.bodyStrong, { color: colors.text }]}>Tamaño</Text>
@@ -416,15 +652,10 @@ export default function TattooEditorScreen() {
         />
 
         <View style={{ height: 8 }} />
-        <AppButton label="Guardar propuesta" onPress={handleSave} disabled={!design} />
+        <AppButton label="Guardar propuesta" onPress={handleSave} disabled={!design} isLoading={saving} />
       </ScrollView>
 
       <CreateIntroModal visible={introOpen} onClose={closeIntro} />
-      <AiPhotoConsentModal
-        visible={consentOpen}
-        onAccept={acceptConsent}
-        onCancel={() => setConsentOpen(false)}
-      />
     </View>
   );
 }
@@ -442,10 +673,11 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    titleGroup: { flexDirection: 'row', alignItems: 'center' },
+    // Centrado sobre la barra entera, no entre los dos botones: asi
+    // queda en el medio exacto aunque los botones no midan lo mismo.
+    titleGroup: { position: 'absolute', left: 0, right: 0, alignItems: 'center', pointerEvents: 'none' },
     // Encima de la camara y del visor 3D el fondo siempre es oscuro,
-    // asi que estos dos van en blanco en los dos temas.
-    title: { color: '#FFFFFF', fontSize: 32, lineHeight: 32 * 1.3, marginLeft: 6 },
+    // asi que el boton va en blanco translucido en los dos temas.
     roundButton: {
       width: 40,
       height: 40,
@@ -454,7 +686,11 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       justifyContent: 'center',
       backgroundColor: 'rgba(0,0,0,0.35)',
     },
+    hintAction: { color: '#FFFFFF', fontSize: 14, textDecorationLine: 'underline' },
     emptyHint: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
       position: 'absolute',
       alignSelf: 'center',
       paddingHorizontal: 14,
@@ -499,6 +735,16 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     error: { ...typo.caption, color: colors.danger },
     zoneRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
+    toolRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    toolButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceRaised,
+    },
     sliderLabel: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+    sliderValue: { ...typo.bodyStrong, color: colors.textMuted, fontVariant: ['tabular-nums'] },
   });
 }

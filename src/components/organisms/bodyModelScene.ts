@@ -13,6 +13,8 @@
  * ninguna libreria nativa nueva ni salir de Expo Go.
  */
 
+import { INK_KEY_SOURCE } from './inkKeySource';
+
 const THREE_VERSION = '0.180.0';
 const CDN = `https://unpkg.com/three@${THREE_VERSION}`;
 
@@ -76,6 +78,29 @@ export function bodyModelHtml({
         background: rgba(255, 255, 255, 0.85);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
       }
+
+      /* Basurero: aparece al arrastrar el tatuaje hacia abajo. Mismo
+         aspecto que TrashTarget (React Native) sobre la camara. */
+      #trash {
+        position: fixed;
+        left: 50%;
+        bottom: 28px;
+        width: 64px;
+        height: 64px;
+        margin-left: -32px;
+        border-radius: 32px;
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        background: rgba(14, 12, 16, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transform: translateY(40px);
+        transition: opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1), background-color 140ms ease;
+        pointer-events: none;
+      }
+      #trash.visible { opacity: 1; transform: translateY(0); }
+      #trash.hot { background: #E5374C; transform: translateY(0) scale(1.22); }
     </style>
     <script type="importmap">
       { "imports": { "three": "${CDN}/build/three.module.js", "three/addons/": "${CDN}/examples/jsm/" } }
@@ -83,6 +108,12 @@ export function bodyModelHtml({
   </head>
   <body>
     <div id="scrollbar"><div id="track"></div><div id="thumb"></div></div>
+    <div id="trash" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.6 7h14.8M9.4 7V4.8h5.2V7M6.4 7l.9 12.2a1.6 1.6 0 0 0 1.6 1.4h6.2a1.6 1.6 0 0 0 1.6-1.4L17.6 7" />
+        <path d="M10.2 11v5.6M13.8 11v5.6" />
+      </svg>
+    </div>
     <script type="module">
       import * as THREE from 'three';
       import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -131,25 +162,24 @@ export function bodyModelHtml({
       let body = null;
       let decal = null;
       let texture = null;
-      let current = { zone: ${JSON.stringify(zone)}, manual: null, size: 1, rotation: 0, opacity: 1, cutout: true };
+      let current = { zone: ${JSON.stringify(zone)}, manual: null, size: 1, rotation: 0, opacity: 1, cutout: true, ink: 'color' };
+
+      ${INK_KEY_SOURCE}
 
       /**
-       * Deja transparente el papel del boceto, con la misma regla que
-       * el filtro SVG del lado de React Native: alfa = 1 - luminancia.
-       * Sin esto el decal seria un recuadro blanco sobre la piel.
+       * El boceto listo para la piel: sin el papel (si \`cutout\`) y a color
+       * o en blanco y negro, con la MISMA rutina que la camara (ver
+       * inkKeySource.ts). Antes aqui se usaba "alfa = 1 - luminancia",
+       * que borraba los colores claros.
        */
-      function toCutout(image) {
+      function prepareImage(image) {
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
         canvas.height = image.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(image, 0, 0);
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const p = data.data;
-        for (let i = 0; i < p.length; i += 4) {
-          const luminance = (p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114) / 255;
-          p[i + 3] = Math.min(p[i + 3], Math.round((1 - luminance) * 255));
-        }
+        keyInk(data.data, canvas.width, canvas.height, { mode: current.ink, removeBg: current.cutout });
         ctx.putImageData(data, 0, 0);
         return canvas;
       }
@@ -157,7 +187,7 @@ export function bodyModelHtml({
       let rawImage = null;
       function buildTexture() {
         if (!rawImage) return null;
-        const source = current.cutout ? toCutout(rawImage) : rawImage;
+        const source = prepareImage(rawImage);
         const t = new THREE.Texture(source);
         t.colorSpace = THREE.SRGBColorSpace;
         t.needsUpdate = true;
@@ -221,7 +251,10 @@ export function bodyModelHtml({
 
         // Un toque manual manda sobre la zona: es colocacion fina
         // sobre un sitio que la lista de zonas no nombra.
-        const hit = current.manual || (current.zone ? hitFor(current.zone) : null);
+        // Sin zona ni toque, el pecho: antes un boceto recien adjuntado
+        // no se veia en ninguna parte hasta tocar el maniquin, y parecia
+        // que no se habia cargado.
+        const hit = current.manual || hitFor(current.zone || 'chest');
         if (!hit) return;
 
         // Orientacion: mirando a lo largo de la normal de la piel, con
@@ -361,6 +394,25 @@ export function bodyModelHtml({
           current.cutout = value;
           texture = buildTexture();
           placeDecal();
+        },
+        setInk(mode) {
+          if (mode === current.ink) return;
+          current.ink = mode;
+          texture = buildTexture();
+          placeDecal();
+        },
+        /**
+         * Imagen de lo que se ve ahora (maniqui con el tatuaje), para la
+         * lista de propuestas guardadas. Se dibuja y se lee en el mismo
+         * paso: sin preserveDrawingBuffer el lienzo se vacia despues.
+         */
+        snapshot() {
+          try {
+            renderer.render(scene, camera);
+            post({ type: 'snapshot', dataUri: renderer.domElement.toDataURL('image/jpeg', 0.85) });
+          } catch (e) {
+            post({ type: 'error', message: String(e && e.message ? e.message : e) });
+          }
         },
       };
 
@@ -517,6 +569,83 @@ export function bodyModelHtml({
       };
       renderer.domElement.addEventListener('pointerup', endPointer);
       renderer.domElement.addEventListener('pointercancel', endPointer);
+
+      // --- arrastrar el tatuaje sobre el cuerpo, y el basurero ---------
+      // Un dedo que empieza SOBRE el tatuaje lo arrastra por la piel (en
+      // vez de girar el maniquin). Si se suelta sobre el basurero, que
+      // aparece abajo al centro al bajar el dedo, se quita.
+      const trash = document.getElementById('trash');
+      const drag = { id: null, startY: 0, hot: false, pending: false, lastHit: null };
+      const TRASH_RADIUS = 72;
+      const overTrash = (x, y) => Math.hypot(x - window.innerWidth / 2, y - (window.innerHeight - 60)) <= TRASH_RADIUS;
+
+      function bodyHitAt(x, y) {
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(toNdc(x, y), camera);
+        const hit = ray.intersectObject(body, true)[0];
+        if (!hit) return null;
+        const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+        return { point: hit.point.clone(), normal, distance: 0.4 };
+      }
+
+      // Fase de captura: corre ANTES que OrbitControls en el mismo
+      // elemento, y asi se le puede quitar el gesto antes de que gire.
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        if (active.size > 1 || !decal || !body) return;
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(toNdc(e.clientX, e.clientY), camera);
+        if (!ray.intersectObject(decal, true).length) return;
+        drag.id = e.pointerId;
+        drag.startY = e.clientY;
+        drag.hot = false;
+        controls.enabled = false;
+        renderer.domElement.setPointerCapture(e.pointerId);
+        e.stopImmediatePropagation();
+      }, { capture: true });
+
+      renderer.domElement.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== drag.id) return;
+        e.stopImmediatePropagation();
+        if (e.clientY - drag.startY > 24) trash.classList.add('visible');
+        drag.hot = overTrash(e.clientX, e.clientY);
+        trash.classList.toggle('hot', drag.hot);
+        if (decal) decal.material.opacity = drag.hot ? current.opacity * 0.3 : current.opacity;
+        if (drag.hot) return;
+        // Recolocar el decal es caro (recorre la malla): uno por frame.
+        drag.lastHit = bodyHitAt(e.clientX, e.clientY) || drag.lastHit;
+        if (drag.pending) return;
+        drag.pending = true;
+        requestAnimationFrame(() => {
+          drag.pending = false;
+          if (drag.id === null || !drag.lastHit) return;
+          current.manual = drag.lastHit;
+          placeDecal();
+        });
+      }, { capture: true });
+
+      const endDrag = (e) => {
+        if (e.pointerId !== drag.id) return;
+        e.stopImmediatePropagation();
+        drag.id = null;
+        controls.enabled = true;
+        trash.classList.remove('visible', 'hot');
+        if (drag.hot) {
+          if (decal) {
+            scene.remove(decal);
+            decal.geometry.dispose();
+            decal.material.dispose();
+            decal = null;
+          }
+          texture = null;
+          rawImage = null;
+          post({ type: 'remove' });
+        } else {
+          post({ type: 'placed' });
+        }
+        drag.hot = false;
+      };
+      renderer.domElement.addEventListener('pointerup', endDrag, { capture: true });
+      renderer.domElement.addEventListener('pointercancel', endDrag, { capture: true });
 
       // Tocar el maniquin coloca el tatuaje justo ahi. Se distingue del
       // gesto de girar por cuanto se movio el dedo: por debajo de unos

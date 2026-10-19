@@ -101,3 +101,31 @@ describe('useEditorStore.hideBackground', () => {
     expect(useEditorStore.getState().placement.scale).toBe(1.7);
   });
 });
+
+describe('useEditorStore — elegir y quitar el boceto', () => {
+  it('un boceto NUEVO aparece centrado, aunque el anterior se hubiera arrastrado al borde', () => {
+    const s = useEditorStore.getState();
+    s.selectDesign('viejo');
+    s.setPlacement({ offsetX: 0.9, offsetY: 1.2, rotationDegrees: 40, scale: 2 });
+    s.selectDesign('nuevo');
+    expect(useEditorStore.getState().placement).toMatchObject({ offsetX: 0, offsetY: 0, rotationDegrees: 0, scale: 1 });
+  });
+
+  it('volver a elegir el MISMO boceto no le cambia la posicion', () => {
+    const s = useEditorStore.getState();
+    s.selectDesign('mismo');
+    s.setPlacement({ offsetX: 0.3 });
+    s.selectDesign('mismo');
+    expect(useEditorStore.getState().placement.offsetX).toBe(0.3);
+  });
+
+  it('el basurero deja la propuesta sin boceto y centrada para el siguiente', () => {
+    const s = useEditorStore.getState();
+    s.selectDesign('d1');
+    s.setPlacement({ offsetX: 0.5, offsetY: 1 });
+    s.removeDesign();
+    const after = useEditorStore.getState();
+    expect(after.designId).toBe('');
+    expect(after.placement).toMatchObject({ offsetX: 0, offsetY: 0 });
+  });
+});

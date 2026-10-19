@@ -7,6 +7,7 @@ interface AppointmentRow {
   client_id: string;
   artist_id: string;
   proposal_id: string | null;
+  design_id?: string | null;
   date_time: string;
   status: AppointmentStatus;
   notes: string | null;
@@ -18,6 +19,7 @@ function toAppointment(row: AppointmentRow): Appointment {
     userId: row.client_id,
     artistId: row.artist_id,
     proposalId: row.proposal_id ?? undefined,
+    designId: row.design_id ?? undefined,
     dateTime: row.date_time,
     status: row.status,
     notes: row.notes ?? undefined,
@@ -50,6 +52,10 @@ export class AppointmentRepository {
       client_id: appointment.userId,
       artist_id: appointment.artistId,
       proposal_id: appointment.proposalId ?? null,
+      // Solo si hay diseno: asi agendar sin diseno sigue funcionando en
+      // una base que aun no tenga la columna. Que el diseno sea de este
+      // mismo tatuador lo comprueba la base, no la app.
+      ...(appointment.designId ? { design_id: appointment.designId } : {}),
       date_time: appointment.dateTime,
       status: appointment.status,
       notes: appointment.notes ?? null,

@@ -357,50 +357,42 @@ en Ajustes re-renderice con la paleta correcta en toda la app.
 
 ---
 
-## 8. IA (sin proveedor fijo)
+## 8. IA (por el servidor, con cuota)
 
-`AIService` (`services/aiService.ts`) es la unica puerta de entrada a IA
-y NO esta atada a ningun proveedor: describe lo que la app necesita, y
-cada proveedor lo implementa como pueda. Hoy hay dos,
-`OpenAiService` y `GeminiAIService`, y añadir un tercero es escribir
-una clase mas y registrarla en `services/aiProvider.ts`, sin tocar una
-sola pantalla ni Controller.
+`AIService` (`services/aiService.ts`) sigue siendo la unica puerta de la
+app hacia la IA, pero la app ya NO habla con ningun proveedor ni lleva
+ninguna clave. Su implementacion es `ProxyAiService`
+(`services/proxyAiService.ts`), que manda cada pedido a la Edge Function
+`ai` de Supabase (`supabase/functions/ai`) con la sesion del usuario.
 
-Cual se usa lo decide el entorno:
+Por que: antes la clave de OpenAI/Gemini iba en variables
+`EXPO_PUBLIC_*`, que terminan dentro de la app; cualquiera podia sacarla
+y gastar el saldo del dueño sin limite.
 
-1. `EXPO_PUBLIC_AI_PROVIDER` (`openai` | `gemini`), si esta puesto.
-2. Si no, el primero que tenga clave.
+La funcion:
 
-Sin ninguna clave la app arranca igual y es `UnconfiguredAiService`
-quien responde, fallando con un mensaje que dice que variable falta.
-Esto es a proposito: dejar pasar una clave vacia convierte un error de
-configuracion en un 401 del servidor mucho mas tarde y mucho mas
-dificil de leer.
+1. Comprueba el JWT del usuario (y el gateway, con `verify_jwt`).
+2. Valida el pedido: `generate`, `removeBackground` o `compose`, con
+   las imagenes como data URI y textos acotados.
+3. Descuenta una unidad de la cuota del dia de esa cuenta
+   (`consume_ai_quota`, tabla `ai_usage`, migracion 20261018210000;
+   `AI_DAILY_LIMIT`, 10 por defecto). Sin cuota responde 429.
+4. Llama al proveedor con la clave de los secrets (`OPENAI_API_KEY` o
+   `GEMINI_API_KEY`, `AI_PROVIDER` para forzar uno) y, en OpenAI, con
+   calidad fija (`AI_IMAGE_QUALITY`, `medium`) para acotar el costo.
+   Si el proveedor falla, devuelve la unidad (`refund_ai_quota`).
 
-Las dos operaciones que mas se usan —recortar un fondo y componer un
-tatuaje sobre una foto— son EDICIONES de imagenes que ya existen, no
-generacion desde cero, y cada API las expresa distinto: Gemini las manda
-como `inlineData` en un JSON, y OpenAI como campos `image[]` repetidos
-de un `multipart/form-data`. Eso obliga a un detalle: el `FormData` de
-React Native solo adjunta archivos reales, asi que un diseño que vive
-como data URI se vuelca antes a un archivo de cache
-(`services/imageFileCache.ts`).
+La logica esta separada de la red (`handler.ts`, `providers.ts`) y se
+prueba con Deno (`npx deno test supabase/functions/ai/`); el lado de la
+app, con Jest (`proxyAiService.test.ts`).
 
-Responsabilidades cubiertas por la interfaz:
-
-| Metodo                     | Uso                                                   |
-| --------------------------- | ------------------------------------------------------ |
-| `generateFromDescription`   | "Serpiente con flores, estilo japones..." → TattooDesign |
-| `analyzeReferenceImage`     | Identificar elementos principales de una imagen subida |
-| `generateVariations`        | Variaciones de un diseno existente                     |
-| `adaptToStyle`               | Adaptar una referencia a un estilo distinto             |
-| `removeBackground`          | Dejar solo el trazo, listo para superponerse            |
-| `composeOnPhoto`            | Aplicar el tatuaje sobre la piel de una foto real       |
-
-Ningun Controller ni ninguna View habla con un proveedor directamente:
-pasan por `aiService`, que `core/services.ts` construye una sola vez.
-Las claves se leen de variables `EXPO_PUBLIC_` (ver seccion 11 y
-`.env.example`).
+| Metodo                     | Operacion de la funcion |
+| --------------------------- | ----------------------- |
+| `generateFromDescription`   | `generate`              |
+| `adaptToStyle`               | `generate` con estilo   |
+| `removeBackground`          | `removeBackground`      |
+| `composeOnPhoto`            | `compose`               |
+| `analyzeReferenceImage`, `generateVariations` | todavia no disponibles |
 
 ---
 
@@ -445,7 +437,7 @@ dato es compartido entre cuentas, no local a una.
 
 - Las variables que el bundle de JS necesita en tiempo de ejecucion (como
   las API keys de IA y de Supabase) deben llevar el prefijo `EXPO_PUBLIC_`
-  (`.env` en la raiz: `EXPO_PUBLIC_GEMINI_API_KEY`,
+  (`.env` en la raiz: las claves de IA ya NO van aqui, ver seccion 8;
   `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`) — es el
   mecanismo que Expo inlinea automaticamente en el bundle; sin ese
   prefijo, la variable no llega al cliente.
@@ -544,3 +536,71 @@ dato es compartido entre cuentas, no local a una.
   `eas submit`, `eas update`) para compilar y firmar en la nube sin Xcode
   ni Android Studio locales, y publicar en TestFlight/Play Store — Expo Go
   es solo para desarrollo, no para el build final.
+
+---
+
+## 13. Lo social de un diseno, y el escaneo de la zona en la camara
+
+**Comentar, dar me gusta y agendar desde un diseno.** Cada trabajo
+publicado por un tatuador tiene su detalle (`app/designs/[id].tsx`):
+foto, tatuador, me gusta, comentarios publicos y "Agendar este
+diseño", que abre el calendario de siempre con `?designId=`. No es
+mensajeria (se quito a pedido del usuario, seccion 12): un comentario
+lo lee cualquiera que vea el diseno.
+
+- Datos: `design_likes` y `design_comments` en Supabase
+  (`20261018120000_design_likes_comments.sql`), con RLS: cada quien
+  escribe solo como si mismo; un comentario lo borra su autor o el
+  dueno del diseno; no hay update. El nombre del autor lo copia un
+  trigger desde `profiles` (la RLS de `profiles` no deja a un cliente
+  leer a otro, asi que un join devolveria vacio). La cita guarda
+  `appointments.design_id`, y otro trigger exige que el diseno sea del
+  mismo tatuador. Tests pgTAP en `supabase/tests/database/`.
+- Capas: `models/designSocial.ts` (validacion, contadores, fechas
+  relativas) → `data/socialRepository.ts` → `controllers/useDesignSocialStore.ts`
+  (me gusta optimista con rollback; el comentario NO es optimista,
+  porque el nombre del autor lo decide la base).
+- Responsive: `theme/layout.ts` (`useResponsive`) da 2/3/4 columnas en
+  telefono/tableta/web, ancho maximo en web, y detalle en dos columnas
+  desde 700 px. Las pantallas lo leen en vez de fijar porcentajes.
+
+**Escaneo de la zona (Crea, modo camara).** No hay deteccion
+automatica del cuerpo: Expo Go no trae un modelo de vision, y meter uno
+obligaria a un development build. En su lugar:
+
+1. En vivo, `molecules/ScanFrame.tsx` dibuja un recuadro guia con la
+   forma de la zona elegida (`models/zoneScan.ts` → `scanFrameFor`).
+2. Al disparar, la foto se abre ya acercada a ese recuadro
+   (`viewToFit`): se trabaja sobre la piel, no sobre todo el cuadro.
+3. Sobre la foto (`organisms/ZoneScanStage.tsx`): **Boceto** mueve el
+   diseno, **Ampliar** acerca hacia los dedos y recorre, **Perfilar**
+   dibuja el contorno del tatuaje en neon con un dedo (dos dedos siguen
+   haciendo zoom). Foto, boceto y trazos estan en el mismo contenedor
+   con zoom, y los trazos se guardan en coordenadas de la foto
+   (`screenToContent`), asi que nada se despega al acercar.
+
+El zoom y los trazos son estado de VISTA (`useZoneScanStore`): no se
+guardan en la propuesta ni viajan a la IA. Si se quiere conservar el
+perfil, el siguiente paso es guardarlo en `TattooProposal` o
+exportarlo como imagen.
+
+**El tatuaje se aplica EN la piel de la foto** (como en el maniquin 3D,
+pero con fotos). El recuadro de la zona es el miembro: su centro es el
+eje y su ancho el diametro de un cilindro. `organisms/SkinWrapView.tsx`
+(canvas dentro de un WebView, escena en `skinWrapScene.ts`, sin CDN)
+envuelve el boceto sobre ese cilindro (`models/skinWrap.ts` →
+`wrapColumn`: x' = R·sen(d/R), columnas que se estrechan y se apagan al
+girar la piel), con curvatura, grosor e inclinacion ajustables, y lo
+funde con la foto por multiplicacion para que conserve la luz y la
+textura de la piel. Tinta negra, color (apagado y teñido por el tono de
+piel medido en el recuadro) u original. Se ve ya en vivo, sobre la
+camara; en la foto, "Aplicar a la foto" guarda el resultado en
+documentos (`saveDataUriToDocuments`) como `renderedImageUrl` de la
+propuesta. La composicion con IA queda como opcion aparte.
+
+**Login** (`app/auth/login.tsx`): arranca identico al splash nativo y
+se abre (`molecules/SplashHandoff.tsx`); detras, la pared de flash del
+estudio (`organisms/FlashWall.tsx`, motivos en `flashSheet.ts`) se tatua
+trazo a trazo. Bienvenida y login estan en `Stack.Protected` con
+`guard={!session}` (app/_layout.tsx): al iniciar sesion salen del
+historial, asi que el gesto de volver no puede regresar al login.

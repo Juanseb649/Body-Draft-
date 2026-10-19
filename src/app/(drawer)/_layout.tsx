@@ -36,6 +36,7 @@ export default function DrawerLayout() {
           choca con sus propios controles: ahi el menu solo se abre con
           el boton. */}
       <Drawer.Screen name="editor" options={{ title: 'Crea', swipeEnabled: false }} />
+      <Drawer.Screen name="propuestas" options={{ title: 'Propuestas' }} />
       <Drawer.Screen name="artists" options={{ title: 'Artistas' }} />
       <Drawer.Screen name="agenda" options={{ title: 'Agenda' }} />
       <Drawer.Screen name="ajustes" options={{ title: 'Ajustes' }} />

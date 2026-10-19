@@ -14,13 +14,14 @@ interface DesignRow {
   image_url: string;
   style: string | null;
   created_at: string;
-  profiles: { name: string | null } | null;
+  profiles: { name: string | null; avatar_url?: string | null } | null;
 }
 
 /** Trabajo de un tatuador tal como se muestra en el feed de Inicio. */
 export interface ArtistFeedItem {
   design: TattooDesign;
   artistName: string;
+  artistAvatarUrl?: string;
 }
 
 /** Trabajo nuevo que un tatuador publica en su catalogo. */
@@ -46,6 +47,7 @@ function toFeedItem(row: DesignRow): ArtistFeedItem {
       createdAt: row.created_at,
     },
     artistName: row.profiles?.name ?? 'Tatuador',
+    artistAvatarUrl: row.profiles?.avatar_url ?? undefined,
   };
 }
 
@@ -75,7 +77,7 @@ export class DesignRepository {
   async getArtistFeed(limit = 8): Promise<ArtistFeedItem[]> {
     const { data, error } = await supabase
       .from('designs')
-      .select('*, profiles(name)')
+      .select('*, profiles(*)')
       .order('created_at', { ascending: false })
       .limit(limit);
     if (error) throw error;
@@ -86,11 +88,22 @@ export class DesignRepository {
   async getArtistTemplates(artistId: string): Promise<TattooDesign[]> {
     const { data, error } = await supabase
       .from('designs')
-      .select('*, profiles(name)')
+      .select('*, profiles(*)')
       .eq('artist_id', artistId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return (data as DesignRow[]).map((row) => toFeedItem(row).design);
+  }
+
+  /** Un trabajo publicado, con el nombre de su tatuador (detalle del diseno). */
+  async getArtistDesign(designId: string): Promise<ArtistFeedItem | undefined> {
+    const { data, error } = await supabase
+      .from('designs')
+      .select('*, profiles(*)')
+      .eq('id', designId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? toFeedItem(data as DesignRow) : undefined;
   }
 
   saveDesign(design: TattooDesign): Promise<void> {
@@ -117,7 +130,7 @@ export class DesignRepository {
         image_url: imageUrl,
         style: work.style || null,
       })
-      .select('*, profiles(name)')
+      .select('*, profiles(*)')
       .single();
 
     if (error) {

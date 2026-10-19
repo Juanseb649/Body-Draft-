@@ -7,8 +7,19 @@ import { defaultPlacement, type Placement } from '../models/placement';
 import type { TattooProposal } from '../models/tattooProposal';
 
 interface EditorState extends TattooProposal {
+  /**
+   * Elige el boceto. Si es OTRO boceto, vuelve al centro y a su tamaño
+   * de partida: antes heredaba la posicion del anterior, y si ese se
+   * habia arrastrado al borde, el nuevo aparecia fuera de la vista.
+   */
   selectDesign: (designId: string) => void;
-  setZone: (zone: BodyZone) => void;
+  /**
+   * Quita el boceto de la propuesta (el basurero). No lo borra de "Mis
+   * diseños": solo deja la propuesta libre para adjuntar otro.
+   */
+  removeDesign: () => void;
+  /** Sin zona (undefined) el maniqui se ve entero. */
+  setZone: (zone?: BodyZone) => void;
   setSilhouette: (silhouette: BodySilhouette) => void;
   /** Aplica de golpe lo que dejo un gesto (mover + girar + escalar). */
   setPlacement: (patch: Partial<Placement>) => void;
@@ -28,6 +39,14 @@ interface EditorState extends TattooProposal {
   /** Descarta la captura y vuelve a la camara en vivo. */
   discardCameraSnapshot: () => void;
   /**
+   * Guarda como resultado la foto con el tatuaje ya aplicado en la piel
+   * dentro del telefono (SkinWrapView). Ocupa el mismo lugar que el
+   * resultado de la IA: es lo que se guarda con la propuesta.
+   */
+  applySkinComposite: (uri: string) => void;
+  /** Quita el resultado (local o de la IA) y vuelve a ajustar sobre la foto. */
+  clearRenderedImage: () => void;
+  /**
    * Manda la captura y el boceto a la IA para que lo componga sobre
    * la piel. Requiere consentimiento: lo comprueba la pantalla antes
    * de llamar aqui (ver settings.privacy.allowAiPhotoUpload).
@@ -35,7 +54,15 @@ interface EditorState extends TattooProposal {
   renderWithAI: (designUri: string, bodyZoneLabel: string) => Promise<boolean>;
   isRendering: boolean;
   renderError?: string;
-  save: () => Promise<void>;
+  /**
+   * Guarda la propuesta a nombre de `userId` (la cuenta con sesion), con
+   * la imagen que la representa. Despues el editor sigue con lo mismo en
+   * pantalla pero como propuesta NUEVA: guardar otra vez no pisa la
+   * anterior.
+   */
+  save: (userId: string, previewImageUrl?: string) => Promise<TattooProposal>;
+  /** Abre una propuesta guardada en el editor (p. ej. para agendar con ella). */
+  loadProposal: (proposal: TattooProposal) => void;
 }
 
 function initialProposal(): TattooProposal {
@@ -63,7 +90,15 @@ function initialProposal(): TattooProposal {
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProposal(),
 
-  selectDesign: (designId) => set({ designId }),
+  selectDesign: (designId) =>
+    set((s) =>
+      s.designId === designId
+        ? { designId }
+        : { designId, placement: { ...defaultPlacement(), opacity: s.placement.opacity }, renderedImageUrl: undefined },
+    ),
+
+  removeDesign: () =>
+    set((s) => ({ designId: '', placement: { ...defaultPlacement(), opacity: s.placement.opacity }, renderedImageUrl: undefined })),
   setZone: (bodyZone) => set({ bodyZone }),
 
   // Cambiar de maniquin olvida la zona: es otro cuerpo, en otra pose, y
@@ -97,6 +132,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   discardCameraSnapshot: () =>
     set({ cameraSnapshotUrl: undefined, renderedImageUrl: undefined, renderError: undefined }),
 
+  applySkinComposite: (uri) => set({ renderedImageUrl: uri, renderError: undefined }),
+  clearRenderedImage: () => set({ renderedImageUrl: undefined, renderError: undefined }),
+
   isRendering: false,
   renderError: undefined,
 
@@ -115,11 +153,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  save: async () => {
-    const saved: TattooProposal = { ...toProposal(get()), status: 'saved' };
+  save: async (userId, previewImageUrl) => {
+    const saved: TattooProposal = { ...toProposal(get()), userId, previewImageUrl, status: 'saved' };
     await designRepository.saveProposal(saved);
-    set(saved);
+    set({ id: Crypto.randomUUID(), userId, status: 'draft', createdAt: new Date().toISOString(), previewImageUrl: undefined });
+    return saved;
   },
+
+  loadProposal: (proposal) => set({ ...proposal, renderError: undefined, isRendering: false }),
 }));
 
 function toProposal(state: EditorState): TattooProposal {
@@ -135,6 +176,7 @@ function toProposal(state: EditorState): TattooProposal {
     placement,
     cameraSnapshotUrl,
     renderedImageUrl,
+    previewImageUrl,
     status,
     createdAt,
   } = state;
@@ -147,6 +189,7 @@ function toProposal(state: EditorState): TattooProposal {
     placement,
     cameraSnapshotUrl,
     renderedImageUrl,
+    previewImageUrl,
     status,
     createdAt,
   };

@@ -1,6 +1,6 @@
 import type { GlowTone } from '../../theme';
 
-export type SectionKey = 'inicio' | 'disena' | 'crea' | 'agenda' | 'artistas' | 'ajustes';
+export type SectionKey = 'inicio' | 'disena' | 'crea' | 'propuestas' | 'agenda' | 'artistas' | 'ajustes';
 
 type Stroke = { d: string; tone: GlowTone; width?: number; transform?: string };
 
@@ -64,6 +64,18 @@ export const SECTIONS: Record<
       { tone: 'amber', transform: 'rotate(40 100 100)', d: 'M102 18 A13 13 0 0 1 115 31 V97 A13 13 0 0 1 102 110 A13 13 0 0 1 89 97 V31 A13 13 0 0 1 102 18 Z' },
       { tone: 'amber', transform: 'rotate(40 100 100)', d: 'M93 60 H111 M93 70 H111 M93 80 H111 M92 110 L96 132 L108 132 L112 110 M96 132 L102 158 L108 132 M102 158 V170' },
       { tone: 'fuchsia', d: 'M55 160 C 68 188, 108 190, 124 166 S 162 146, 182 172' },
+    ],
+  },
+  // Una foto guardada (el marco) con el tatuaje dentro y la cinta de
+  // marcador: "lo que guardaste para tatuarte".
+  propuestas: {
+    label: 'Propuestas',
+    word: 'fuchsia',
+    swoosh: 'blue',
+    strokes: [
+      { tone: 'blue', d: 'M50 40 H150 A10 10 0 0 1 160 50 V160 A10 10 0 0 1 150 170 H50 A10 10 0 0 1 40 160 V50 A10 10 0 0 1 50 40 Z' },
+      { tone: 'fuchsia', d: 'M100 140 C 68 118, 62 92, 82 85 C 91 82, 98 88, 100 95 C 102 88, 109 82, 118 85 C 138 92, 132 118, 100 140 Z' },
+      { tone: 'amber', width: 7, d: 'M124 40 V78 L135 69 L146 78 V40' },
     ],
   },
   ajustes: {

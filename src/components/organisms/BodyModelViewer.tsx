@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { WebView } from 'react-native-webview';
 
 import type { BodySilhouette, BodyZone } from '../../models/bodyZone';
+import type { InkMode } from '../../models/skinWrap';
 import { anchorsFor } from '../../models/bodyZoneAnchors';
 import { bodyModelHtml } from './bodyModelScene';
 
@@ -23,9 +24,16 @@ export interface BodyModelViewerProps {
   opacity: number;
   /** Si el papel del boceto se vuelve transparente. */
   cutout: boolean;
+  /** A color o en blanco y negro (mismo selector que la camara). */
+  ink: InkMode;
   /** Avisa del tamaño al que lo dejo un pellizco dentro de la escena. */
   onSizeChange?: (size: number) => void;
   onError?: (message: string) => void;
+  /** El tatuaje se solto sobre el basurero (arrastrandolo hacia abajo). */
+  onRemove?: () => void;
+  /** Cada vez que sube, se pide una imagen de lo que se ve (onSnapshot). */
+  snapshotRequest?: number;
+  onSnapshot?: (dataUri: string) => void;
 }
 
 /**
@@ -54,8 +62,12 @@ export function BodyModelViewer({
   rotationDegrees,
   opacity,
   cutout,
+  ink,
   onSizeChange,
   onError,
+  onRemove,
+  snapshotRequest = 0,
+  onSnapshot,
 }: BodyModelViewerProps) {
   const webRef = useRef<WebView>(null);
 
@@ -84,6 +96,10 @@ export function BodyModelViewer({
   useEffect(() => send(`window.bodyModel.setRotation(${rotationDegrees})`), [rotationDegrees]);
   useEffect(() => send(`window.bodyModel.setOpacity(${opacity})`), [opacity]);
   useEffect(() => send(`window.bodyModel.setCutout(${cutout})`), [cutout]);
+  useEffect(() => send(`window.bodyModel.setInk(${JSON.stringify(ink)})`), [ink]);
+  useEffect(() => {
+    if (snapshotRequest > 0) send('window.bodyModel.snapshot()');
+  }, [snapshotRequest]);
 
   return (
     <WebView
@@ -110,10 +126,15 @@ export function BodyModelViewer({
             send(`window.bodyModel.setRotation(${rotationDegrees})`);
             send(`window.bodyModel.setOpacity(${opacity})`);
             send(`window.bodyModel.setCutout(${cutout})`);
+            send(`window.bodyModel.setInk(${JSON.stringify(ink)})`);
           }
           // El pellizco cambia el tamaño dentro de la escena; sin esto
           // el deslizador de la hoja seguiria marcando el valor viejo.
           if (message.type === 'size' && typeof message.value === 'number') onSizeChange?.(message.value);
+          if (message.type === 'remove') onRemove?.();
+          if (message.type === 'snapshot' && (message as { dataUri?: string }).dataUri) {
+            onSnapshot?.((message as { dataUri?: string }).dataUri as string);
+          }
         } catch {
           // Mensaje que no es nuestro; se ignora.
         }
