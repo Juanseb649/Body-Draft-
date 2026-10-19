@@ -30,6 +30,19 @@ siembra cuentas cuyo rol lo escribe el trigger que define
 | `20261018210000_ai_usage_quota.sql` | Cuota diaria de IA por cuenta (`ai_usage`, `consume_ai_quota`, `refund_ai_quota`), usada por la Edge Function `ai` |
 | `20261019010000_backfill_missing_profiles.sql` | Crea la fila de `profiles` a las cuentas que no la tenian (sin ella no se guardaba el nombre) y pone nombre a los comentarios que quedaron sin autor |
 
+## Fotos reales para los tatuadores demo
+
+El seed les deja imágenes al azar de picsum. Para cambiarlas por fotos
+de tatuajes de su estilo (blackwork para Nora, realismo para Rubén):
+
+```bash
+node tools/seed-demo-tattoos.mjs
+```
+
+Sube las fotos de `tools/demo-tattoos/` al bucket `portfolio` de cada
+cuenta y actualiza sus trabajos y su portafolio. Créditos y licencias
+en `tools/demo-tattoos/CREDITS.md`.
+
 ## Comprobar que quedó bien
 
 Después de aplicar las dos últimas:
