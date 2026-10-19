@@ -28,6 +28,20 @@ export interface DesignSocialSummary {
   likedByMe: boolean;
 }
 
+/** Para quien la base no puso nombre (falta la migracion de nombres). */
+export const UNKNOWN_AUTHOR = 'Usuario de BodyDraft';
+
+/**
+ * El nombre que se muestra en un comentario. Los comentarios PROPIOS
+ * siempre llevan el nombre actual de la cuenta: asi un cambio de nombre
+ * se ve al instante, y un comentario guardado sin nombre (perfil sin
+ * fila, o la base sin la migracion 20261018200000) no sale anonimo.
+ */
+export function commentAuthorName(comment: DesignComment, me?: { id?: string; name?: string }): string {
+  if (me?.id && comment.userId === me.id && me.name?.trim()) return me.name.trim();
+  return comment.authorName.trim() || UNKNOWN_AUTHOR;
+}
+
 export const EMPTY_SUMMARY: DesignSocialSummary = { likeCount: 0, commentCount: 0, likedByMe: false };
 
 export type CommentValidation = { ok: true; body: string } | { ok: false; error: string };

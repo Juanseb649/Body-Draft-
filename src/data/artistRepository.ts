@@ -94,14 +94,32 @@ export class ArtistRepository {
 
   /** Cambia el nombre visible del perfil propio (la RLS solo deja el propio). */
   async setMyName(userId: string, name: string): Promise<void> {
-    const { error } = await supabase.from('profiles').update({ name }).eq('id', userId);
-    if (error) throw error;
+    await this.upsertMyProfile(userId, { name });
   }
 
   /** Pone (o quita, con null) la foto del perfil propio. */
   async setMyAvatar(userId: string, avatarUrl: string | null): Promise<void> {
-    const { error } = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', userId);
+    await this.upsertMyProfile(userId, { avatar_url: avatarUrl });
+  }
+
+  /**
+   * Escribe en el perfil propio CREANDO la fila si no existe.
+   *
+   * Con un update, una cuenta sin fila en `profiles` (creada antes de que
+   * existiera el trigger del registro) no cambiaba nada y tampoco daba
+   * error: la app mostraba el nombre nuevo, pero nunca se guardaba, y los
+   * comentarios seguian firmando "Alguien". Las policies ya permiten
+   * insertar y actualizar solo la fila propia (id = auth.uid()).
+   */
+  private async upsertMyProfile(userId: string, patch: Record<string, unknown>): Promise<void> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({ id: userId, ...patch }, { onConflict: 'id' })
+      .select('id');
     if (error) throw error;
+    if (!data || (data as unknown[]).length === 0) {
+      throw new Error('No se pudo guardar el perfil (el servidor no devolvió la fila).');
+    }
   }
 }
 

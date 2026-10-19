@@ -1,8 +1,10 @@
 import {
   COMMENT_MAX_LENGTH,
+  commentAuthorName,
   formatCount,
   relativeTime,
   toggleLike,
+  UNKNOWN_AUTHOR,
   validateComment,
 } from '../designSocial';
 
@@ -61,5 +63,23 @@ describe('relativeTime', () => {
 
   it('un reloj adelantado no da tiempos negativos', () => {
     expect(relativeTime('2026-10-18T12:05:00.000Z', now)).toBe('ahora');
+  });
+});
+
+describe('commentAuthorName', () => {
+  const base = { id: 'c1', designId: 'd1', body: 'hola', createdAt: '2026-10-18T10:00:00Z' };
+
+  it('mi comentario lleva mi nombre ACTUAL, aunque la base lo guardara vacio o con el viejo', () => {
+    expect(commentAuthorName({ ...base, userId: 'u1', authorName: '' }, { id: 'u1', name: 'Sebas' })).toBe('Sebas');
+    expect(commentAuthorName({ ...base, userId: 'u1', authorName: 'Nombre viejo' }, { id: 'u1', name: 'Sebas' })).toBe('Sebas');
+  });
+
+  it('el de otra persona lleva el que puso la base', () => {
+    expect(commentAuthorName({ ...base, userId: 'u2', authorName: 'Lucía' }, { id: 'u1', name: 'Sebas' })).toBe('Lucía');
+  });
+
+  it('nunca "Alguien": sin nombre en ningun lado, un texto neutro', () => {
+    expect(commentAuthorName({ ...base, userId: 'u2', authorName: '' }, { id: 'u1' })).toBe(UNKNOWN_AUTHOR);
+    expect(UNKNOWN_AUTHOR).not.toMatch(/alguien/i);
   });
 });

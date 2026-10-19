@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { COMMENT_MAX_LENGTH, relativeTime, type DesignComment } from '../../models/designSocial';
+import { COMMENT_MAX_LENGTH, commentAuthorName, relativeTime, type DesignComment } from '../../models/designSocial';
 import { flatToneColor, type as typo, useTheme } from '../../theme';
 import { Avatar } from '../atoms/Avatar';
 import { Icon } from '../atoms/Icon';
@@ -20,6 +20,7 @@ export function DesignComments({
   error,
   canComment,
   canDelete,
+  me,
   onSubmit,
   onDelete,
 }: {
@@ -29,6 +30,8 @@ export function DesignComments({
   error?: string;
   canComment: boolean;
   canDelete: (comment: DesignComment) => boolean;
+  /** La cuenta con sesion: sus comentarios llevan su nombre ACTUAL. */
+  me?: { id?: string; name?: string };
   /** Devuelve si se publico, para limpiar el campo solo en ese caso. */
   onSubmit: (body: string) => Promise<boolean>;
   onDelete: (comment: DesignComment) => void;
@@ -73,13 +76,15 @@ export function DesignComments({
         </View>
       ) : (
         <View style={{ gap: 16 }}>
-          {comments.map((comment) => (
+          {comments.map((comment) => {
+            const author = commentAuthorName(comment, me);
+            return (
             <View key={comment.id} style={styles.row}>
-              <Avatar name={comment.authorName} imageUrl={comment.authorAvatarUrl} size={36} tone="blue" shape="rounded" />
+              <Avatar name={author} imageUrl={comment.authorAvatarUrl} size={36} tone="blue" shape="rounded" />
               <View style={{ flex: 1 }}>
                 <View style={styles.meta}>
                   <Text style={[typo.bodyStrong, { color: colors.textStrong, fontSize: 14 }]} numberOfLines={1}>
-                    {comment.authorName}
+                    {author}
                   </Text>
                   <Text style={[typo.caption, { color: colors.textMuted }]}>{relativeTime(comment.createdAt)}</Text>
                 </View>
@@ -91,13 +96,14 @@ export function DesignComments({
                   hitSlop={10}
                   style={styles.deleteButton}
                   accessibilityRole="button"
-                  accessibilityLabel={`Borrar el comentario de ${comment.authorName}`}
+                  accessibilityLabel={`Borrar el comentario de ${author}`}
                 >
                   <Icon name="trash" size={18} color={colors.textMuted} />
                 </Pressable>
               )}
             </View>
-          ))}
+            );
+          })}
         </View>
       )}
 

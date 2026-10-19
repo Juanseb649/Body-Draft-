@@ -11,6 +11,7 @@ import { DesignComments } from '../../components/organisms/DesignComments';
 import { designRepository, type ArtistFeedItem } from '../../core/services';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useDesignSocialStore } from '../../controllers/useDesignSocialStore';
+import { useProfileStore } from '../../controllers/useProfileStore';
 import type { DesignComment } from '../../models/designSocial';
 import { flatToneColor, fonts, type as typo, useResponsive, useTheme } from '../../theme';
 
@@ -30,6 +31,9 @@ export default function DesignDetailScreen() {
   const { colors, scheme } = useTheme();
   const layout = useResponsive();
   const userId = useAuthStore((s) => s.user?.id);
+  const signUpName = useAuthStore((s) => s.user?.user_metadata?.name as string | undefined);
+  const myName = useProfileStore((s) => s.profile.name) ?? signUpName;
+  const loadProfile = useProfileStore((s) => s.load);
 
   const [item, setItem] = useState<ArtistFeedItem | null | undefined>(undefined);
   const summary = useDesignSocialStore((s) => s.summaries[id]);
@@ -46,7 +50,8 @@ export default function DesignDetailScreen() {
       .catch(() => setItem(null));
     loadSummaries([id], userId);
     loadComments(id);
-  }, [id, userId, loadSummaries, loadComments]);
+    if (userId) loadProfile(userId);
+  }, [id, userId, loadSummaries, loadComments, loadProfile]);
 
   const isOwner = Boolean(item && userId && item.design.artistId === userId);
   const canDelete = (comment: DesignComment) => comment.userId === userId || isOwner;
@@ -135,6 +140,7 @@ export default function DesignDetailScreen() {
       isPosting={isPosting}
       error={error}
       canComment={Boolean(userId)}
+      me={{ id: userId, name: myName }}
       canDelete={canDelete}
       onSubmit={(body) => (userId ? addComment(design.id, userId, body) : Promise.resolve(false))}
       onDelete={deleteComment}
