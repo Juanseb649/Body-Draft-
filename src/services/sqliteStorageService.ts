@@ -32,7 +32,7 @@ const SEED_PROPOSALS: TattooProposal[] = [
     userId: 'current-user',
     designId: 'design-1',
     bodyZone: 'forearm',
-    silhouette: 'neutral',
+    silhouette: 'masculine',
     placement: { ...defaultPlacement(), scale: 1.1 },
     status: 'saved',
     createdAt: daysAgo(1),

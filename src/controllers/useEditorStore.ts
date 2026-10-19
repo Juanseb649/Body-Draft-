@@ -1,21 +1,68 @@
 import * as Crypto from 'expo-crypto';
 import { create } from 'zustand';
 
-import { designRepository } from '../core/services';
+import { aiService, designRepository } from '../core/services';
 import type { BodySilhouette, BodyZone } from '../models/bodyZone';
-import { defaultPlacement } from '../models/placement';
+import { defaultPlacement, type Placement } from '../models/placement';
 import type { TattooProposal } from '../models/tattooProposal';
 
 interface EditorState extends TattooProposal {
+  /**
+   * Elige el boceto. Si es OTRO boceto, vuelve al centro y a su tamaño
+   * de partida: antes heredaba la posicion del anterior, y si ese se
+   * habia arrastrado al borde, el nuevo aparecia fuera de la vista.
+   */
   selectDesign: (designId: string) => void;
-  setZone: (zone: BodyZone) => void;
+  /**
+   * Quita el boceto de la propuesta (el basurero). No lo borra de "Mis
+   * diseños": solo deja la propuesta libre para adjuntar otro.
+   */
+  removeDesign: () => void;
+  /** Sin zona (undefined) el maniqui se ve entero. */
+  setZone: (zone?: BodyZone) => void;
   setSilhouette: (silhouette: BodySilhouette) => void;
-  move: (dx: number, dy: number) => void;
+  /** Aplica de golpe lo que dejo un gesto (mover + girar + escalar). */
+  setPlacement: (patch: Partial<Placement>) => void;
   rotate: (degrees: number) => void;
   scale: (scale: number) => void;
   setOpacity: (opacity: number) => void;
+  /**
+   * Si el boceto se pinta con su fondo o recortado.
+   *
+   * Es una preferencia de VISTA, no del diseno: el mismo boceto se
+   * ve con fondo en la galeria y sin el sobre la piel, sin tener que
+   * guardar dos imagenes.
+   */
+  hideBackground: boolean;
+  setHideBackground: (value: boolean) => void;
   attachCameraSnapshot: (uri: string) => void;
-  save: () => Promise<void>;
+  /** Descarta la captura y vuelve a la camara en vivo. */
+  discardCameraSnapshot: () => void;
+  /**
+   * Guarda como resultado la foto con el tatuaje ya aplicado en la piel
+   * dentro del telefono (SkinWrapView). Ocupa el mismo lugar que el
+   * resultado de la IA: es lo que se guarda con la propuesta.
+   */
+  applySkinComposite: (uri: string) => void;
+  /** Quita el resultado (local o de la IA) y vuelve a ajustar sobre la foto. */
+  clearRenderedImage: () => void;
+  /**
+   * Manda la captura y el boceto a la IA para que lo componga sobre
+   * la piel. Requiere consentimiento: lo comprueba la pantalla antes
+   * de llamar aqui (ver settings.privacy.allowAiPhotoUpload).
+   */
+  renderWithAI: (designUri: string, bodyZoneLabel: string) => Promise<boolean>;
+  isRendering: boolean;
+  renderError?: string;
+  /**
+   * Guarda la propuesta a nombre de `userId` (la cuenta con sesion), con
+   * la imagen que la representa. Despues el editor sigue con lo mismo en
+   * pantalla pero como propuesta NUEVA: guardar otra vez no pisa la
+   * anterior.
+   */
+  save: (userId: string, previewImageUrl?: string) => Promise<TattooProposal>;
+  /** Abre una propuesta guardada en el editor (p. ej. para agendar con ella). */
+  loadProposal: (proposal: TattooProposal) => void;
 }
 
 function initialProposal(): TattooProposal {
@@ -24,8 +71,9 @@ function initialProposal(): TattooProposal {
     // TODO: sustituir por el id del usuario autenticado.
     userId: 'current-user',
     designId: '',
-    bodyZone: 'forearm',
-    silhouette: 'neutral',
+    // Sin zona: el maniquin se abre entero y la elige el usuario.
+    bodyZone: undefined,
+    silhouette: 'masculine',
     placement: defaultPlacement(),
     status: 'draft',
     createdAt: new Date().toISOString(),
@@ -42,14 +90,26 @@ function initialProposal(): TattooProposal {
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProposal(),
 
-  selectDesign: (designId) => set({ designId }),
-  setZone: (bodyZone) => set({ bodyZone }),
-  setSilhouette: (silhouette) => set({ silhouette }),
+  selectDesign: (designId) =>
+    set((s) =>
+      s.designId === designId
+        ? { designId }
+        : { designId, placement: { ...defaultPlacement(), opacity: s.placement.opacity }, renderedImageUrl: undefined },
+    ),
 
-  move: (dx, dy) =>
-    set((s) => ({
-      placement: { ...s.placement, offsetX: s.placement.offsetX + dx, offsetY: s.placement.offsetY + dy },
-    })),
+  removeDesign: () =>
+    set((s) => ({ designId: '', placement: { ...defaultPlacement(), opacity: s.placement.opacity }, renderedImageUrl: undefined })),
+  setZone: (bodyZone) => set({ bodyZone }),
+
+  // Cambiar de maniquin olvida la zona: es otro cuerpo, en otra pose, y
+  // la zona que estaba enfocada no tiene por que caer en el mismo sitio
+  // del nuevo. Se vuelve a ver entero para que el usuario elija sobre
+  // el cuerpo que va a mirar.
+  setSilhouette: (silhouette) => set({ silhouette, bodyZone: undefined }),
+
+  // Un solo `set` para todo el gesto: mover, girar y escalar llegan
+  // juntos desde DesignOverlay al soltar el dedo, no frame a frame.
+  setPlacement: (patch) => set((s) => ({ placement: { ...s.placement, ...patch } })),
 
   rotate: (degrees) => set((s) => ({ placement: { ...s.placement, rotationDegrees: degrees } })),
 
@@ -57,26 +117,93 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setOpacity: (opacity) => set((s) => ({ placement: { ...s.placement, opacity } })),
 
+  // Por defecto recortado: un boceto pegado con su hoja de papel
+  // encima de un brazo no se parece a un tatuaje.
+  hideBackground: true,
+  setHideBackground: (hideBackground) => set({ hideBackground }),
+
   /**
    * Adjunta la foto tomada con la camara (diseno ya superpuesto sobre
    * el cuerpo real). La vista de maniquin 3D no necesita este paso: se
    * re-renderiza a partir de bodyZone/silhouette/placement.
    */
-  attachCameraSnapshot: (uri) => set({ cameraSnapshotUrl: uri }),
+  attachCameraSnapshot: (uri) => set({ cameraSnapshotUrl: uri, renderedImageUrl: undefined, renderError: undefined }),
 
-  save: async () => {
-    const saved: TattooProposal = { ...toProposal(get()), status: 'saved' };
-    await designRepository.saveProposal(saved);
-    set(saved);
+  discardCameraSnapshot: () =>
+    set({ cameraSnapshotUrl: undefined, renderedImageUrl: undefined, renderError: undefined }),
+
+  applySkinComposite: (uri) => set({ renderedImageUrl: uri, renderError: undefined }),
+  clearRenderedImage: () => set({ renderedImageUrl: undefined, renderError: undefined }),
+
+  isRendering: false,
+  renderError: undefined,
+
+  renderWithAI: async (designUri, bodyZoneLabel) => {
+    const photoUri = get().cameraSnapshotUrl;
+    if (!photoUri) return false;
+
+    set({ isRendering: true, renderError: undefined });
+    try {
+      const renderedImageUrl = await aiService.composeOnPhoto({ photoUri, designUri, bodyZoneLabel });
+      set({ renderedImageUrl, isRendering: false });
+      return true;
+    } catch (e) {
+      set({ isRendering: false, renderError: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
   },
+
+  save: async (userId, previewImageUrl) => {
+    const saved: TattooProposal = { ...toProposal(get()), userId, previewImageUrl, status: 'saved' };
+    await designRepository.saveProposal(saved);
+    set({ id: Crypto.randomUUID(), userId, status: 'draft', createdAt: new Date().toISOString(), previewImageUrl: undefined });
+    return saved;
+  },
+
+  loadProposal: (proposal) => set({ ...proposal, renderError: undefined, isRendering: false }),
 }));
 
 function toProposal(state: EditorState): TattooProposal {
-  const { id, userId, designId, bodyZone, silhouette, placement, cameraSnapshotUrl, status, createdAt } = state;
-  return { id, userId, designId, bodyZone, silhouette, placement, cameraSnapshotUrl, status, createdAt };
+  // Se enumeran los campos a mano y no se hace un spread del estado:
+  // asi lo de trabajo (isRendering, renderError y las propias acciones)
+  // no acaba guardado dentro de la propuesta.
+  const {
+    id,
+    userId,
+    designId,
+    bodyZone,
+    silhouette,
+    placement,
+    cameraSnapshotUrl,
+    renderedImageUrl,
+    previewImageUrl,
+    status,
+    createdAt,
+  } = state;
+  return {
+    id,
+    userId,
+    designId,
+    bodyZone,
+    silhouette,
+    placement,
+    cameraSnapshotUrl,
+    renderedImageUrl,
+    previewImageUrl,
+    status,
+    createdAt,
+  };
 }
 
 /** Resetea el editor a una propuesta en blanco (nuevo diseno). */
 export function resetEditor(): void {
-  useEditorStore.setState(initialProposal());
+  // `setState` es una fusion parcial, asi que lo que no sea parte de la
+  // propuesta hay que devolverlo a su valor inicial a mano o se
+  // arrastraria del diseno anterior.
+  useEditorStore.setState({
+    ...initialProposal(),
+    hideBackground: true,
+    isRendering: false,
+    renderError: undefined,
+  });
 }

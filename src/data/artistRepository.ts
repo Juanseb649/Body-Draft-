@@ -10,6 +10,8 @@ interface ProfileRow {
   location: string | null;
   portfolio_image_urls: string[] | null;
   rating: number | null;
+  /** No existe hasta aplicar 20261018200000_profile_names_and_avatars.sql. */
+  avatar_url?: string | null;
 }
 
 function toArtist(row: ProfileRow): Artist {
@@ -22,6 +24,7 @@ function toArtist(row: ProfileRow): Artist {
     location: row.location ?? undefined,
     availableSlots: [],
     rating: row.rating ?? undefined,
+    avatarUrl: row.avatar_url ?? undefined,
   };
 }
 
@@ -51,4 +54,85 @@ export class ArtistRepository {
     if (error) throw error;
     return data ? toArtist(data as ProfileRow) : undefined;
   }
+
+  /**
+   * El perfil de la cuenta con la sesion abierta. No filtra por
+   * `role`: a diferencia de `getArtistById`, aqui hace falta poder
+   * leerlo aunque todavia no sea tatuador (es justo lo que permite
+   * volverse uno desde "Editar perfil").
+   */
+  async getMyProfile(userId: string): Promise<Artist | undefined> {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (error) throw error;
+    return data ? toArtist(data as ProfileRow) : undefined;
+  }
+
+  /**
+   * Guarda los campos editables del perfil propio. La RLS ya impide
+   * tocar el de otro, pero el `eq('id', userId)` deja explicito en el
+   * codigo que esto solo escribe una fila.
+   */
+  async updateMyProfile(userId: string, patch: ArtistProfilePatch): Promise<Artist> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name: patch.name,
+        // Una cadena vacia en un campo opcional se guarda como NULL:
+        // asi `coalesce`/`??` de toda la app la tratan como "sin dato"
+        // en vez de pintar un hueco.
+        specialty: emptyToNull(patch.specialty),
+        bio: emptyToNull(patch.bio),
+        location: emptyToNull(patch.location),
+        role: patch.role,
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+    if (error) throw error;
+    return toArtist(data as ProfileRow);
+  }
+
+  /** Cambia el nombre visible del perfil propio (la RLS solo deja el propio). */
+  async setMyName(userId: string, name: string): Promise<void> {
+    await this.upsertMyProfile(userId, { name });
+  }
+
+  /** Pone (o quita, con null) la foto del perfil propio. */
+  async setMyAvatar(userId: string, avatarUrl: string | null): Promise<void> {
+    await this.upsertMyProfile(userId, { avatar_url: avatarUrl });
+  }
+
+  /**
+   * Escribe en el perfil propio CREANDO la fila si no existe.
+   *
+   * Con un update, una cuenta sin fila en `profiles` (creada antes de que
+   * existiera el trigger del registro) no cambiaba nada y tampoco daba
+   * error: la app mostraba el nombre nuevo, pero nunca se guardaba, y los
+   * comentarios seguian firmando "Alguien". Las policies ya permiten
+   * insertar y actualizar solo la fila propia (id = auth.uid()).
+   */
+  private async upsertMyProfile(userId: string, patch: Record<string, unknown>): Promise<void> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({ id: userId, ...patch }, { onConflict: 'id' })
+      .select('id');
+    if (error) throw error;
+    if (!data || (data as unknown[]).length === 0) {
+      throw new Error('No se pudo guardar el perfil (el servidor no devolvió la fila).');
+    }
+  }
+}
+
+/** Campos del perfil que el propio tatuador puede editar. */
+export interface ArtistProfilePatch {
+  name: string;
+  specialty: string;
+  bio: string;
+  location: string;
+  role: 'client' | 'artist';
+}
+
+function emptyToNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }

@@ -1,15 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
 import { Chip } from '../../components/atoms/Chip';
-import { artistRepository } from '../../core/services';
+import { artistRepository, designRepository, type ArtistFeedItem } from '../../core/services';
 import { useAppointmentStore } from '../../controllers/useAppointmentStore';
 import { useAuthStore } from '../../controllers/useAuthStore';
 import { useEditorStore } from '../../controllers/useEditorStore';
-import { BODY_ZONE_LABELS } from '../../models/bodyZone';
+import { bodyZoneLabel } from '../../models/bodyZone';
 import { type as typo, useTheme } from '../../theme';
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -35,7 +35,9 @@ function monthGrid(year: number, month: number): (number | null)[][] {
 
 /** Pantalla "Agenda" (agendar cita): calendario + horarios para el tatuador elegido. */
 export default function AppointmentScreen() {
-  const { artistId } = useLocalSearchParams<{ artistId: string }>();
+  // `designId` llega cuando se agenda desde el detalle de un diseno
+  // publicado; sin el, se agenda la propuesta armada en "Crea".
+  const { artistId, designId } = useLocalSearchParams<{ artistId: string; designId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -48,6 +50,7 @@ export default function AppointmentScreen() {
   const [day, setDay] = useState<number | null>(today.getDate());
   const [time, setTime] = useState<string | null>(null);
   const [artistName, setArtistName] = useState('tu artista');
+  const [fromDesign, setFromDesign] = useState<ArtistFeedItem | undefined>(undefined);
 
   const styles = createStyles(colors);
   const weeks = useMemo(() => monthGrid(cursor.year, cursor.month), [cursor]);
@@ -55,6 +58,14 @@ export default function AppointmentScreen() {
   useEffect(() => {
     artistRepository.getArtistById(artistId).then((a) => a && setArtistName(a.name));
   }, [artistId]);
+
+  useEffect(() => {
+    if (!designId) return;
+    designRepository
+      .getArtistDesign(designId)
+      .then(setFromDesign)
+      .catch(() => setFromDesign(undefined));
+  }, [designId]);
 
   const changeMonth = (delta: number) => {
     setDay(null);
@@ -68,7 +79,12 @@ export default function AppointmentScreen() {
     if (!day || !time) return;
     const [hours, minutes] = time.split(':').map(Number);
     const dateTime = new Date(cursor.year, cursor.month, day, hours, minutes);
-    const ok = await book({ userId, artistId, dateTime: dateTime.toISOString(), proposalId: proposal.id });
+    const ok = await book({
+      userId,
+      artistId,
+      dateTime: dateTime.toISOString(),
+      ...(designId ? { designId } : { proposalId: proposal.id }),
+    });
     if (ok) router.replace('/agenda');
   };
 
@@ -82,17 +98,33 @@ export default function AppointmentScreen() {
         <View style={styles.iconButton} />
       </View>
 
-      <View style={styles.proposalCard}>
-        <View style={[styles.proposalIcon, { backgroundColor: colors.primaryTint }]}>
-          <Text style={{ color: colors.primary }}>♡</Text>
+      {designId ? (
+        <View style={styles.proposalCard}>
+          {fromDesign ? (
+            <Image source={{ uri: fromDesign.design.imageUrl }} style={styles.designThumb} />
+          ) : (
+            <View style={[styles.designThumb, { backgroundColor: colors.surfaceRaised }]} />
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={[typo.bodyStrong, { color: colors.textStrong }]} numberOfLines={1}>
+              {fromDesign?.design.title ?? 'Diseño elegido'}
+            </Text>
+            <Text style={[typo.caption, { color: colors.textMuted }]}>Diseño de {artistName}</Text>
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>Tu propuesta</Text>
-          <Text style={[typo.caption, { color: colors.textMuted }]}>
-            {BODY_ZONE_LABELS[proposal.bodyZone]} · {Math.round(proposal.placement.scale * 100)} % · con {artistName}
-          </Text>
+      ) : (
+        <View style={styles.proposalCard}>
+          <View style={[styles.proposalIcon, { backgroundColor: colors.primaryTint }]}>
+            <Text style={{ color: colors.primary }}>♡</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>Tu propuesta</Text>
+            <Text style={[typo.caption, { color: colors.textMuted }]}>
+              {bodyZoneLabel(proposal.bodyZone)} · {Math.round(proposal.placement.scale * 100)} % · con {artistName}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       <View style={styles.calendarCard}>
         <View style={styles.calendarHeader}>
@@ -150,7 +182,8 @@ export default function AppointmentScreen() {
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
-    container: { flex: 1, paddingHorizontal: 20 },
+    // En tableta/web el calendario no se estira de borde a borde.
+    container: { flex: 1, paddingHorizontal: 20, width: '100%', maxWidth: 560, alignSelf: 'center' },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     iconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     proposalCard: {
@@ -165,6 +198,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       marginBottom: 16,
     },
     proposalIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    designThumb: { width: 48, height: 60, borderRadius: 10 },
     calendarCard: {
       padding: 16,
       borderRadius: 20,

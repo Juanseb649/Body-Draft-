@@ -1,6 +1,6 @@
 import type { GlowTone } from '../../theme';
 
-export type SectionKey = 'inicio' | 'disena' | 'crea' | 'agenda' | 'explora' | 'artistas' | 'ajustes';
+export type SectionKey = 'inicio' | 'disena' | 'crea' | 'propuestas' | 'agenda' | 'artistas' | 'ajustes';
 
 type Stroke = { d: string; tone: GlowTone; width?: number; transform?: string };
 
@@ -52,17 +52,10 @@ export const SECTIONS: Record<
       { tone: 'fuchsia', d: 'M100 148 C 76 132, 66 120, 66 108 C 66 98, 74 92, 82 92 C 90 92, 96 97, 100 104 C 104 97, 110 92, 118 92 C 126 92, 134 98, 134 108 C 134 120, 124 132, 100 148 Z' },
     ],
   },
-  explora: {
-    label: 'Explora',
-    word: 'blue',
-    swoosh: 'fuchsia',
-    strokes: [
-      { tone: 'amber', d: 'M22 100 C 58 52, 142 52, 178 100 C 142 148, 58 148, 22 100 Z' },
-      { tone: 'amber', width: 4, d: 'M60 44 L66 58 M100 32 V48 M140 44 L134 58' },
-      { tone: 'fuchsia', d: 'M74 100 A26 26 0 1 0 126 100 A26 26 0 1 0 74 100 Z' },
-      { tone: 'blue', d: 'M92 100 A8 8 0 1 0 108 100 A8 8 0 1 0 92 100 Z' },
-    ],
-  },
+  // Hubo una seccion "Explora" con el maniquin 3D. Se quito: el
+  // maniquin vive ahora dentro de "Crea", junto a la camara, porque
+  // son dos formas de hacer lo mismo —ver el boceto sobre un cuerpo—
+  // y separarlas obligaba a saltar de seccion a mitad del flujo.
   artistas: {
     label: 'Artistas',
     word: 'fuchsia',
@@ -71,6 +64,18 @@ export const SECTIONS: Record<
       { tone: 'amber', transform: 'rotate(40 100 100)', d: 'M102 18 A13 13 0 0 1 115 31 V97 A13 13 0 0 1 102 110 A13 13 0 0 1 89 97 V31 A13 13 0 0 1 102 18 Z' },
       { tone: 'amber', transform: 'rotate(40 100 100)', d: 'M93 60 H111 M93 70 H111 M93 80 H111 M92 110 L96 132 L108 132 L112 110 M96 132 L102 158 L108 132 M102 158 V170' },
       { tone: 'fuchsia', d: 'M55 160 C 68 188, 108 190, 124 166 S 162 146, 182 172' },
+    ],
+  },
+  // Una foto guardada (el marco) con el tatuaje dentro y la cinta de
+  // marcador: "lo que guardaste para tatuarte".
+  propuestas: {
+    label: 'Propuestas',
+    word: 'fuchsia',
+    swoosh: 'blue',
+    strokes: [
+      { tone: 'blue', d: 'M50 40 H150 A10 10 0 0 1 160 50 V160 A10 10 0 0 1 150 170 H50 A10 10 0 0 1 40 160 V50 A10 10 0 0 1 50 40 Z' },
+      { tone: 'fuchsia', d: 'M100 140 C 68 118, 62 92, 82 85 C 91 82, 98 88, 100 95 C 102 88, 109 82, 118 85 C 138 92, 132 118, 100 140 Z' },
+      { tone: 'amber', width: 7, d: 'M124 40 V78 L135 69 L146 78 V40' },
     ],
   },
   ajustes: {

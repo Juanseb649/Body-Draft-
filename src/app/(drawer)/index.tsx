@@ -1,43 +1,128 @@
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '../../components/atoms/AppButton';
+import { Avatar } from '../../components/atoms/Avatar';
 import { MenuButton } from '../../components/atoms/MenuButton';
 import { NeonText } from '../../components/atoms/NeonText';
+import { RevealOnScroll } from '../../components/atoms/RevealOnScroll';
+import { ArtistWorkCard } from '../../components/molecules/ArtistWorkCard';
 import { BodyDraftLogo } from '../../components/molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
-import { type as typo, useTheme } from '../../theme';
+import { artistRepository } from '../../core/services';
+import { useAppointmentStore } from '../../controllers/useAppointmentStore';
+import { useDesignSocialStore } from '../../controllers/useDesignSocialStore';
+import { useDesignStore } from '../../controllers/useDesignStore';
+import { useProfileStore } from '../../controllers/useProfileStore';
+import { nextAppointment } from '../../models/appointment';
+import { greetingFor } from '../../models/greeting';
+import { gridItemWidth, type as typo, useResponsive, useTheme } from '../../theme';
+
+const FEED_GAP = 14;
+
+const STATUS: Record<'pending' | 'confirmed', string> = { pending: 'Pendiente', confirmed: 'Confirmada' };
 
 /**
  * "Inicio". Ya NO lleva accesos a las secciones: para eso esta el menu
  * lateral (ver components/organisms/SidebarContent.tsx). Aqui va el
- * saludo, el CTA de crear diseno, la proxima cita y la seccion social
- * con lo ultimo de los artistas.
+ * saludo, el CTA de crear diseno, la proxima cita y el feed con lo
+ * ultimo que publicaron los tatuadores.
  */
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const name = (useAuthStore((s) => s.user?.user_metadata?.name as string | undefined)) ?? 'ahi';
-  const initial = name.charAt(0).toUpperCase();
+  const signUpName = useAuthStore((s) => s.user?.user_metadata?.name as string | undefined);
+  const userId = useAuthStore((s) => s.user?.id);
+  const profile = useProfileStore((s) => s.profile);
+  const loadProfile = useProfileStore((s) => s.load);
+  // El nombre del perfil manda (es el que se edita); el del registro es el respaldo.
+  const name = profile.name ?? signUpName ?? '';
+  const { feed, isFeedLoading, loadFeed } = useDesignStore();
+  const summaries = useDesignSocialStore((s) => s.summaries);
+  const loadSummaries = useDesignSocialStore((s) => s.loadSummaries);
+  const toggleLike = useDesignSocialStore((s) => s.toggleLike);
+  const appointments = useAppointmentStore((s) => s.appointments);
+  const loadAppointments = useAppointmentStore((s) => s.loadAppointments);
+  const upcoming = nextAppointment(appointments);
+  const [upcomingArtist, setUpcomingArtist] = useState<{ id: string; name: string } | null>(null);
+  const layout = useResponsive();
+  const contentWidth = Math.min(layout.width, layout.contentMaxWidth) - layout.gutter * 2;
+  const cellWidth = gridItemWidth(contentWidth, layout.gridColumns, FEED_GAP);
 
   const styles = createStyles(colors);
+  const scrollY = useSharedValue(0);
+  const feedY = useSharedValue(0);
+
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
+
+  useEffect(() => {
+    if (userId) loadProfile(userId);
+  }, [userId, loadProfile]);
+
+  // La proxima cita sale de Supabase: antes aqui habia una de ejemplo
+  // (14 de octubre, "Confirmada") que el usuario nunca agendo.
+  useEffect(() => {
+    if (userId) loadAppointments(userId);
+  }, [userId, loadAppointments]);
+
+  useEffect(() => {
+    if (!upcoming) return;
+    artistRepository
+      .getArtistById(upcoming.artistId)
+      .then((a) => a && setUpcomingArtist({ id: a.id, name: a.name }))
+      .catch(() => {});
+  }, [upcoming]);
+
+  // Los contadores van aparte del feed: si fallan, las fotos se ven igual.
+  useEffect(() => {
+    if (feed.length > 0) loadSummaries(feed.map((item) => item.design.id), userId);
+  }, [feed, userId, loadSummaries]);
 
   return (
-    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+    <Animated.ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + 16,
+          paddingHorizontal: layout.gutter,
+          maxWidth: layout.contentMaxWidth,
+          width: '100%',
+          alignSelf: 'center',
+        },
+      ]}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+    >
       <View style={styles.header}>
         <MenuButton />
         <BodyDraftLogo variant="inline" size={28} />
-        <View style={styles.avatar}>
-          <Text style={styles.avatarLabel}>{initial}</Text>
-        </View>
+        {/* Tu foto (o tus iniciales) lleva a Ajustes: tu cuenta, tu foto y tus preferencias. */}
+        <Pressable
+          onPress={() => router.push('/ajustes')}
+          hitSlop={8}
+          style={({ pressed }) => pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] }}
+          accessibilityRole="button"
+          accessibilityLabel="Tu perfil y ajustes"
+        >
+          <Avatar name={name} imageUrl={profile.avatarUrl} size={40} />
+        </Pressable>
       </View>
 
-      <View style={styles.greeting}>
-        <Text style={[typo.title, { color: colors.textStrong }]}>Hola, {name}</Text>
-        <Text style={[typo.body, { color: colors.textMuted }]}>¿Qué vamos a tatuar hoy?</Text>
-      </View>
+      <Text style={[typo.title, { color: colors.textStrong }]}>
+        {greetingFor(new Date())}
+        {name ? `, ${name}` : ''}
+      </Text>
 
       <View style={styles.ctaCard}>
         <NeonText tone="fuchsia" style={styles.sparkle} containerStyle={styles.sparkleContainer}>
@@ -57,39 +142,89 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      {/* TODO: reemplazar por la proxima Appointment real (useAppointmentStore). */}
-      <View style={styles.appointmentCard}>
-        <View style={styles.dateBadge}>
-          <Text style={[typo.label, { color: colors.secondary, fontSize: 10 }]}>OCT</Text>
-          <Text style={[typo.title, { color: colors.textStrong }]}>14</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>Tu artista</Text>
-          <Text style={[typo.caption, { color: colors.textMuted }]}>Antebrazo · 4:30 p. m.</Text>
-        </View>
-        <View style={styles.statusPill}>
-          <Text style={[typo.caption, { color: colors.success, fontFamily: typo.bodyStrong.fontFamily }]}>Confirmada</Text>
-        </View>
+      {upcoming ? (
+        <Pressable
+          onPress={() => router.push('/agenda')}
+          style={({ pressed }) => [styles.appointmentCard, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <View style={styles.dateBadge}>
+            <Text style={[typo.label, { color: colors.secondary, fontSize: 10 }]}>
+              {new Date(upcoming.dateTime).toLocaleDateString('es', { month: 'short' }).replace('.', '')}
+            </Text>
+            <Text style={[typo.title, { color: colors.textStrong }]}>{new Date(upcoming.dateTime).getDate()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>
+              {upcomingArtist?.id === upcoming.artistId ? upcomingArtist.name : 'Tu tatuador'}
+            </Text>
+            <Text style={[typo.caption, { color: colors.textMuted }]}>
+              {new Date(upcoming.dateTime).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}
+            </Text>
+          </View>
+          <View style={[styles.statusPill, upcoming.status === 'pending' && { backgroundColor: colors.accent + '26' }]}>
+            <Text
+              style={[
+                typo.caption,
+                { color: upcoming.status === 'confirmed' ? colors.success : colors.accent, fontFamily: typo.bodyStrong.fontFamily },
+              ]}
+            >
+              {STATUS[upcoming.status as 'pending' | 'confirmed']}
+            </Text>
+          </View>
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => router.push('/appointment/new')}
+          style={({ pressed }) => [styles.appointmentCard, styles.noAppointment, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>No tienes citas por delante</Text>
+            <Text style={[typo.caption, { color: colors.textMuted }]}>Elige un tatuador y reserva un horario.</Text>
+          </View>
+          <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Agendar</Text>
+        </Pressable>
+      )}
+
+      <View style={styles.sectionHeader}>
+        <Text style={[typo.sectionTitle, { color: colors.textStrong }]}>Lo último de los artistas</Text>
+        <Pressable onPress={() => router.push('/artists')}>
+          <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Ver artistas</Text>
+        </Pressable>
       </View>
-    </ScrollView>
+
+      <View
+        style={styles.feedGrid}
+        onLayout={(e) => {
+          feedY.value = e.nativeEvent.layout.y;
+        }}
+      >
+        {feed.map((item) => (
+          <RevealOnScroll key={item.design.id} scrollY={scrollY} sectionY={feedY} style={{ width: cellWidth }}>
+            <ArtistWorkCard
+              item={item}
+              summary={summaries[item.design.id]}
+              onPress={() => router.push(`/designs/${item.design.id}`)}
+              onToggleLike={userId ? () => toggleLike(item.design.id, userId) : undefined}
+            />
+          </RevealOnScroll>
+        ))}
+      </View>
+
+      {feed.length === 0 && !isFeedLoading && (
+        <Text style={[typo.body, { color: colors.textMuted }]}>
+          Todavía no hay trabajos publicados por tatuadores.
+        </Text>
+      )}
+    </Animated.ScrollView>
   );
 }
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
-    content: { paddingHorizontal: 20, paddingBottom: 32, gap: 20 },
+    content: { paddingBottom: 32, gap: 20 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      borderWidth: 2,
-      borderColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarLabel: { ...typo.bodyStrong, color: colors.primary },
-    greeting: { gap: 2 },
     ctaCard: {
       backgroundColor: colors.surface,
       borderRadius: 20,
@@ -119,11 +254,13 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    noAppointment: { borderStyle: 'dashed' },
     statusPill: {
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 12,
       backgroundColor: colors.success + '26',
     },
+    feedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: FEED_GAP },
   });
 }

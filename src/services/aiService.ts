@@ -23,4 +23,31 @@ export interface AIService {
   /** Elimina el fondo de una imagen, lista para superponerse sobre
    * camara o maniquin 3D. */
   removeBackground(imageUri: string): Promise<string>;
+
+  /**
+   * Recompone una foto del cuerpo con el tatuaje aplicado sobre la
+   * piel: siguiendo su curvatura, su luz y su tono, en vez de pegado
+   * plano encima.
+   *
+   * Es deliberadamente un paso APARTE y bajo demanda, no algo que
+   * ocurra mientras la camara esta abierta:
+   *
+   * - Manda una foto del cuerpo del usuario a un servicio externo, asi
+   *   que tiene que ser una decision suya y consentida (ver
+   *   `settings.privacy.allowAiPhotoUpload`).
+   * - Cuesta cuota de API por llamada, y tarda segundos.
+   *
+   * La vista previa en vivo sigue siendo local y gratis: esto es el
+   * "enséñame cómo quedaría de verdad" sobre una foto ya tomada.
+   */
+  composeOnPhoto(input: ComposeOnPhotoInput): Promise<string>;
+}
+
+export interface ComposeOnPhotoInput {
+  /** Foto del cuerpo recien capturada (file:// o data URI). */
+  photoUri: string;
+  /** Imagen del tatuaje, mejor si ya viene sin fondo. */
+  designUri: string;
+  /** Zona del cuerpo, en lenguaje natural ("antebrazo", "costillas"). */
+  bodyZoneLabel: string;
 }

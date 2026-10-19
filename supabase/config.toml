@@ -4,3 +4,9 @@
 # `supabase link --project-ref <ref>` (ver supabase/README.md) — nunca
 # hardcodear un project_id de produccion en un archivo commiteado.
 project_id = "body-draft"
+
+# Edge Function de IA (supabase/functions/ai). verify_jwt: el gateway de
+# Supabase rechaza antes de llegar a la funcion cualquier peticion sin un
+# JWT valido; la funcion ademas lo vuelve a comprobar y aplica la cuota.
+[functions.ai]
+verify_jwt = true

@@ -24,6 +24,21 @@ interface SettingsState {
     role: AccountRole;
     locale: Locale;
   };
+  /** Explicaciones de un solo uso que el usuario ya vio. */
+  onboarding: {
+    seenCreateIntro: boolean;
+  };
+  privacy: {
+    /**
+     * Permiso EXPLICITO para mandar una foto del cuerpo a la IA y
+     * que la recomponga con el tatuaje aplicado.
+     *
+     * Arranca en false y solo lo pone a true el usuario aceptando el
+     * aviso: todo lo demas de la camara ocurre en el telefono, y esta
+     * es la unica parte donde una foto suya sale de el.
+     */
+    allowAiPhotoUpload: boolean;
+  };
 
   setTheme: (theme: ThemePreference) => void;
   setNeonIntensity: (value: NeonIntensity) => void;
@@ -33,6 +48,8 @@ interface SettingsState {
   setArtistMessages: (value: boolean) => void;
   setNews: (value: boolean) => void;
   setRole: (value: AccountRole) => void;
+  markCreateIntroSeen: () => void;
+  setAllowAiPhotoUpload: (value: boolean) => void;
   setLocale: (value: Locale) => void;
 }
 
@@ -54,6 +71,8 @@ export const useSettingsStore = create<SettingsState>()(
         news: false,
       },
       account: { role: 'client', locale: 'es' },
+      onboarding: { seenCreateIntro: false },
+      privacy: { allowAiPhotoUpload: false },
 
       setTheme: (theme) => set((s) => ({ appearance: { ...s.appearance, theme } })),
       setNeonIntensity: (neonIntensity) => set((s) => ({ appearance: { ...s.appearance, neonIntensity } })),
@@ -65,6 +84,8 @@ export const useSettingsStore = create<SettingsState>()(
       setArtistMessages: (artistMessages) => set((s) => ({ notifications: { ...s.notifications, artistMessages } })),
       setNews: (news) => set((s) => ({ notifications: { ...s.notifications, news } })),
       setRole: (role) => set((s) => ({ account: { ...s.account, role } })),
+      markCreateIntroSeen: () => set((s) => ({ onboarding: { ...s.onboarding, seenCreateIntro: true } })),
+      setAllowAiPhotoUpload: (allowAiPhotoUpload) => set((s) => ({ privacy: { ...s.privacy, allowAiPhotoUpload } })),
       setLocale: (locale) => set((s) => ({ account: { ...s.account, locale } })),
     }),
     { name: 'bodydraft.settings', storage: createJSONStorage(() => AsyncStorage) },

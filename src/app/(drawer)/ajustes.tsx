@@ -1,10 +1,16 @@
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Avatar } from '../../components/atoms/Avatar';
 import { Segmented } from '../../components/atoms/Segmented';
+import { Spinner } from '../../components/atoms/Spinner';
 import { SectionHeader } from '../../components/molecules/SectionHeader';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import { useProfileStore } from '../../controllers/useProfileStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
+import { NAME_MAX_LENGTH } from '../../models/profileErrors';
 import { palette, type as typo, useTheme } from '../../theme';
 
 const REMINDER_OPTIONS = [2, 24, 48] as const;
@@ -17,29 +23,146 @@ export default function SettingsScreen() {
   const { user, signOut, updateRole } = useAuthStore();
   const settings = useSettingsStore();
 
+  const { profile, isSaving, error: profileError, load, changeAvatar, removeAvatar, rename, clearError } =
+    useProfileStore();
   const styles = createStyles(colors);
-  const initial = (user?.email ?? '?').charAt(0).toUpperCase();
+  const name = profile.name ?? (user?.user_metadata?.name as string | undefined) ?? 'Tu nombre';
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  const startEditingName = () => {
+    clearError();
+    setDraftName(profile.name ?? (user?.user_metadata?.name as string | undefined) ?? '');
+    setEditingName(true);
+  };
+  const cancelName = () => {
+    clearError();
+    setEditingName(false);
+  };
+  const saveName = async () => {
+    if (!user?.id) return;
+    if (await rename(user.id, draftName)) setEditingName(false);
+  };
+
+  useEffect(() => {
+    if (user?.id) load(user.id);
+  }, [user?.id, load]);
+
+  const pickPhoto = async () => {
+    if (!user?.id) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+    // Recorte cuadrado: el avatar es un circulo, y asi se elige que entra.
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    await changeAvatar(user.id, result.assets[0].uri);
+  };
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <SectionHeader section="ajustes" />
 
       <View style={styles.profileCard}>
-        <View style={[styles.avatar, { borderColor: colors.primary }]}>
-          <Text style={[typo.bodyStrong, { color: colors.primary }]}>{initial}</Text>
-        </View>
+        {/* Tocar la foto la cambia; sin foto se ven las iniciales. */}
+        <Pressable
+          onPress={pickPhoto}
+          disabled={isSaving}
+          style={({ pressed }) => pressed && { opacity: 0.75 }}
+          accessibilityRole="button"
+          accessibilityLabel={profile.avatarUrl ? 'Cambiar foto de perfil' : 'Agregar foto de perfil'}
+        >
+          <Avatar name={name} imageUrl={profile.avatarUrl} size={72} />
+          {isSaving && (
+            <View style={styles.avatarBusy}>
+              <Spinner color="#FFFFFF" />
+            </View>
+          )}
+        </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[typo.bodyStrong, { color: colors.textStrong }]}>
-            {(user?.user_metadata?.name as string | undefined) ?? 'Tu nombre'}
-          </Text>
+          <Text style={[typo.bodyStrong, { color: colors.textStrong, fontSize: 17 }]}>{name}</Text>
           <Text style={[typo.caption, { color: colors.textMuted }]}>{user?.email}</Text>
           <View style={[styles.rolePill, { backgroundColor: colors.secondaryTint }]}>
             <Text style={[typo.caption, { color: colors.secondary }]}>
               {settings.account.role === 'artist' ? 'Tatuador' : 'Cliente'}
             </Text>
           </View>
+          <View style={styles.photoActions}>
+            <Pressable onPress={pickPhoto} disabled={isSaving} hitSlop={8} accessibilityRole="button">
+              <Text style={[typo.bodyStrong, { color: colors.secondary, fontSize: 14 }]}>
+                {profile.avatarUrl ? 'Cambiar foto' : 'Agregar foto'}
+              </Text>
+            </Pressable>
+            {profile.avatarUrl && (
+              <Pressable
+                onPress={() => user?.id && removeAvatar(user.id)}
+                disabled={isSaving}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <Text style={[typo.bodyStrong, { color: colors.textMuted, fontSize: 14 }]}>Quitar</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
+
+      {/* Nombre de usuario: el que se ve en Inicio, en el menu y firmando
+          tus comentarios (la base actualiza los anteriores sola). */}
+      <View style={styles.nameRow}>
+        <Text style={styles.nameLabel}>Nombre de usuario</Text>
+        {editingName ? (
+          <>
+            <TextInput
+              value={draftName}
+              onChangeText={setDraftName}
+              autoFocus
+              maxLength={NAME_MAX_LENGTH + 10}
+              returnKeyType="done"
+              onSubmitEditing={saveName}
+              placeholder="Cómo quieres que te vean"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.secondary}
+              style={styles.nameInput}
+              accessibilityLabel="Nombre de usuario"
+            />
+            <View style={styles.nameActions}>
+              <Pressable onPress={cancelName} hitSlop={8} accessibilityRole="button">
+                <Text style={[typo.bodyStrong, { color: colors.textMuted }]}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveName}
+                disabled={isSaving}
+                style={({ pressed }) => [styles.saveName, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+              >
+                {isSaving ? (
+                  <Spinner size={18} color={colors.onPrimary} />
+                ) : (
+                  <Text style={[typo.bodyStrong, { color: colors.onPrimary }]}>Guardar</Text>
+                )}
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <Pressable
+            onPress={startEditingName}
+            style={({ pressed }) => [styles.nameValue, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Nombre de usuario: ${name}. Editar`}
+          >
+            <Text style={[typo.body, { color: colors.textStrong, flex: 1 }]} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={[typo.bodyStrong, { color: colors.secondary }]}>Editar</Text>
+          </Pressable>
+        )}
+      </View>
+      {profileError && <Text style={[typo.caption, { color: colors.danger, marginTop: 8 }]}>{profileError}</Text>}
 
       <Group title="Apariencia">
         <Field label="Tema">
@@ -140,6 +263,21 @@ export default function SettingsScreen() {
         <Pressable onPress={() => settings.setLocale(settings.account.locale === 'es' ? 'en' : 'es')}>
           <Row label="Idioma" right={<Text style={[typo.body, { color: colors.textMuted }]}>{LOCALE_LABEL[settings.account.locale]}  ›</Text>} />
         </Pressable>
+        {/* Es lo unico de la app que saca una foto del usuario de su
+            telefono, asi que tiene interruptor propio y no queda
+            enterrado en "Privacidad y datos". */}
+        <Row
+          label="Resultado realista con IA"
+          hint="Permite enviar la foto que tomes a un servicio de inteligencia artificial para ver el tatuaje integrado en tu piel"
+          right={
+            <Switch
+              value={settings.privacy.allowAiPhotoUpload}
+              onValueChange={settings.setAllowAiPhotoUpload}
+              trackColor={{ false: colors.border, true: colors.selection }}
+              thumbColor={palette.white}
+            />
+          }
+        />
         <Row label="Privacidad y datos" right={<Text style={{ color: colors.textMuted }}>›</Text>} />
       </Group>
 
@@ -225,7 +363,34 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderColor: colors.border,
       marginTop: 16,
     },
-    avatar: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+    avatarBusy: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(14,12,16,0.55)',
+    },
+    photoActions: { flexDirection: 'row', gap: 16, marginTop: 8 },
+    nameRow: { marginTop: 12, padding: 16, borderRadius: 20, backgroundColor: colors.surface, gap: 8 },
+    nameLabel: { ...typo.bodyStrong, fontSize: 14, color: colors.textMuted },
+    nameValue: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+    nameInput: {
+      ...typo.body,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.surfaceSunken,
+      borderWidth: 1.5,
+      borderColor: colors.secondary,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    nameActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 20 },
+    saveName: { minHeight: 40, minWidth: 96, paddingHorizontal: 18, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     rolePill: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
     logout: {
       marginTop: 24,

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import { authService } from '../core/services';
 import { supabase } from '../services/supabaseClient';
-import type { Session, User } from '../services/authService';
+import type { Session, SignUpProfile, User } from '../services/authService';
 import { useSettingsStore } from './useSettingsStore';
 
 interface AuthState {
@@ -14,7 +14,7 @@ interface AuthState {
   isLoading: boolean;
   error?: string;
 
-  signUp: (email: string, password: string, name: string) => Promise<boolean>;
+  signUp: (email: string, password: string, profile: SignUpProfile) => Promise<boolean>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   /** Publica el rol en `profiles` (Supabase) — sin esto, "Soy tatuador"
@@ -37,11 +37,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: undefined,
 
-  signUp: async (email, password, name) => {
+  signUp: async (email, password, profile) => {
     set({ isLoading: true, error: undefined });
     try {
-      const { session } = await authService.signUp(email, password, name);
+      const { session } = await authService.signUp(email, password, profile);
       set({ session, user: session?.user ?? null, isLoading: false });
+      // El rol elegido al registrarse manda tambien en este dispositivo,
+      // sin esperar a que `initAuth` lo relea de `profiles`: con la
+      // confirmacion por correo activada puede no haber sesion todavia.
+      useSettingsStore.getState().setRole(profile.role);
       return true;
     } catch (e) {
       set({ isLoading: false, error: e instanceof Error ? e.message : String(e) });

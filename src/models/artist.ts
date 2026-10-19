@@ -11,4 +11,6 @@ export interface Artist {
   /** Horarios disponibles para agendar cita (ISO strings). */
   availableSlots: string[];
   rating?: number;
+  /** Foto de perfil (bucket `avatars`); sin ella se dibujan las iniciales. */
+  avatarUrl?: string;
 }

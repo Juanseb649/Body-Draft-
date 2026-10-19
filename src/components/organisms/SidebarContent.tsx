@@ -2,11 +2,13 @@ import { usePathname, useRouter } from 'expo-router';
 import { DrawerContentScrollView, type DrawerContentComponentProps } from 'expo-router/drawer';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '../atoms/Avatar';
 import { SectionIcon } from '../atoms/SectionIcon';
 import { Segmented } from '../atoms/Segmented';
 import { SECTIONS, type SectionKey } from '../atoms/sectionIcons';
 import { BodyDraftLogo } from '../molecules/BodyDraftLogo';
 import { useAuthStore } from '../../controllers/useAuthStore';
+import { useProfileStore } from '../../controllers/useProfileStore';
 import { useSettingsStore } from '../../controllers/useSettingsStore';
 import { type as typo, useTheme } from '../../theme';
 
@@ -20,7 +22,7 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
       { section: 'inicio', href: '/' },
       { section: 'disena', href: '/disena' },
       { section: 'crea', href: '/editor' },
-      { section: 'explora', href: '/model3d' },
+      { section: 'propuestas', href: '/propuestas' },
     ],
   },
   {
@@ -50,8 +52,8 @@ export function SidebarContent(props: DrawerContentComponentProps) {
   const setTheme = useSettingsStore((s) => s.setTheme);
 
   const styles = createStyles(colors);
-  const name = (user?.user_metadata?.name as string | undefined) ?? 'Tu nombre';
-  const initial = name.charAt(0).toUpperCase();
+  const profile = useProfileStore((s) => s.profile);
+  const name = profile.name ?? (user?.user_metadata?.name as string | undefined) ?? 'Tu nombre';
 
   // `navigate` y no `push`: el menu salta entre secciones, no apila una
   // copia nueva cada vez que se toca la misma entrada.
@@ -87,10 +89,10 @@ export function SidebarContent(props: DrawerContentComponentProps) {
         </Pressable>
       </View>
 
-      <Pressable onPress={() => go(SETTINGS_ENTRY.href)} style={styles.profile} accessibilityRole="button">
-        <View style={[styles.avatar, { borderColor: colors.primaryText }]}>
-          <Text style={[typo.bodyStrong, { color: colors.primaryText }]}>{initial}</Text>
-        </View>
+      {/* La ficha del perfil lleva a editarlo, no a Ajustes: es donde
+          un tatuador completa su ficha publica y publica trabajos. */}
+      <Pressable onPress={() => go('/profile/edit')} style={styles.profile} accessibilityRole="button">
+        <Avatar name={name} imageUrl={profile.avatarUrl} size={44} />
         <View style={{ flex: 1 }}>
           <Text style={[typo.bodyStrong, { color: colors.textStrong }]} numberOfLines={1}>
             {name}
@@ -148,14 +150,6 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: 16,
       backgroundColor: colors.surfaceRaised,
       marginBottom: 12,
-    },
-    avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      borderWidth: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
     group: { marginTop: 12, gap: 2 },
     item: {

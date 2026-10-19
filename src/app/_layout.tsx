@@ -1,23 +1,42 @@
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 
-import { initAuth } from '../controllers/useAuthStore';
+import { initAuth, useAuthStore } from '../controllers/useAuthStore';
 import { fontAssets, ThemeProvider, useTheme } from '../theme';
 
-/** Fondo solido con el color del tema mientras cargan las fuentes. */
-function SplashView() {
-  const { colors } = useTheme();
-  return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+/** Color de fondo del propio PNG del logo: evita un borde visible detras. */
+const LOGO_BACKGROUND = '#171218';
+
+// Mantiene el splash nativo (el logo de BodyDraft) hasta que las fuentes
+// esten listas, para que no se vea un parpadeo en blanco al arrancar.
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // En web/dev puede no estar montado todavia; no es critico.
+});
+
+/** Mismo logo del splash nativo, por si el tema tarda un frame mas. */
+function LaunchView() {
+  return (
+    <View style={{ flex: 1, backgroundColor: LOGO_BACKGROUND, alignItems: 'center', justifyContent: 'center' }}>
+      <Image
+        source={require('../../assets/logo-bodydraft.png')}
+        style={{ width: 260, height: 252 }}
+        resizeMode="contain"
+        accessibilityLabel="Body Draft"
+      />
+    </View>
+  );
 }
 
 /** Envuelve la app real una vez que el tema esta listo, para poder
  * leer `colors` del tema en el fondo de la pantalla de carga. */
 function AppShell() {
   const { colors, scheme } = useTheme();
+  const hasSession = useAuthStore((s) => Boolean(s.session));
 
   useEffect(() => {
     initAuth();
@@ -27,12 +46,23 @@ function AppShell() {
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Screen name="welcome" />
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="(drawer)" />
+        {/* Bienvenida y login solo existen SIN sesion. Al iniciar sesion
+            el guard pasa a false y Expo Router borra esas pantallas del
+            historial: sin esto seguian debajo de la app, y el gesto de
+            volver (deslizar desde el borde o desde la mitad) devolvia
+            al login con la sesion abierta. */}
+        <Stack.Protected guard={!hasSession}>
+          <Stack.Screen name="welcome" />
+          <Stack.Screen name="auth" />
+        </Stack.Protected>
+        {/* La raiz de la app no tiene "atras": no hay nada debajo. */}
+        <Stack.Screen name="(drawer)" options={{ gestureEnabled: false }} />
         {/* Drill-down: se apilan ENCIMA del menu lateral y llevan chevron
             de volver, no boton de menu. */}
         <Stack.Screen name="artists/[id]" />
+        <Stack.Screen name="designs/[id]" />
+        <Stack.Screen name="profile/edit" />
+        <Stack.Screen name="appointment/new" />
         <Stack.Screen name="appointment/[artistId]" />
       </Stack>
     </>
@@ -43,9 +73,13 @@ function AppShell() {
 export default function RootLayout() {
   const [fontsLoaded] = useFonts(fontAssets);
 
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>{fontsLoaded ? <AppShell /> : <SplashView />}</ThemeProvider>
+      <ThemeProvider>{fontsLoaded ? <AppShell /> : <LaunchView />}</ThemeProvider>
     </GestureHandlerRootView>
   );
 }

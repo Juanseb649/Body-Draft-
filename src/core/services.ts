@@ -1,11 +1,14 @@
 import { AppointmentRepository } from '../data/appointmentRepository';
 import { ArtistRepository } from '../data/artistRepository';
 import { DesignRepository } from '../data/designRepository';
+import { SocialRepository } from '../data/socialRepository';
 import type { AIService } from '../services/aiService';
 import type { AuthService } from '../services/authService';
 import { SupabaseAuthService } from '../services/authService';
 import { BodyModelServiceImpl } from '../services/bodyModelService';
-import { GeminiAIService } from '../services/geminiAiService';
+import type { ImageUploadService } from '../services/imageUploadService';
+import { SupabaseImageUploadService } from '../services/imageUploadService';
+import { ProxyAiService } from '../services/proxyAiService';
 import { SqliteStorageService } from '../services/sqliteStorageService';
 import type { StorageService } from '../services/storageService';
 
@@ -23,13 +26,21 @@ import type { StorageService } from '../services/storageService';
  * supabase/migrations/ en el proyecto de Supabase (ver supabase/README.md).
  */
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
+export type { ArtistFeedItem, NewArtistWork } from '../data/designRepository';
 
 export const storageService: StorageService = new SqliteStorageService();
-export const aiService: AIService = new GeminiAIService(GEMINI_API_KEY);
+/**
+ * La IA pasa SIEMPRE por la Edge Function `ai` de Supabase: la clave del
+ * proveedor vive en los secrets del servidor (nunca en la app) y cada
+ * cuenta tiene una cuota diaria. Que proveedor se usa lo deciden esos
+ * secrets, no la app. Ver supabase/functions/ai.
+ */
+export const aiService: AIService = new ProxyAiService();
 export const bodyModelService = new BodyModelServiceImpl();
 export const authService: AuthService = new SupabaseAuthService();
+export const imageUploadService: ImageUploadService = new SupabaseImageUploadService();
 
-export const designRepository = new DesignRepository(storageService, aiService);
+export const designRepository = new DesignRepository(storageService, aiService, imageUploadService);
 export const artistRepository = new ArtistRepository();
 export const appointmentRepository = new AppointmentRepository();
+export const socialRepository = new SocialRepository();
